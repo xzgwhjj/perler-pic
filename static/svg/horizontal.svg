@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="#0a0a0a"
+	data-fg-dag76="1.30:50.5110:/src/app/pages/Home.tsx:180:5:7157:489:e:svg:xtetxtetete:1" data-fgid-dag76=":r1gt:"
+	data-fg-callsite-dag42="">
+	<path d="M3 10H17M17 10L13 6M17 10L13 14" stroke="#0a0a0a" stroke-width="1.2" stroke-linecap="round"
+		stroke-linejoin="round" data-fg-dag78="1.30:50.5110:/src/app/pages/Home.tsx:182:7:7255:175:e:path"></path>
+	<circle cx="5" cy="10" r="1.5" fill="currentColor"
+		data-fg-dag80="1.30:50.5110:/src/app/pages/Home.tsx:190:7:7460:53:e:circle"></circle>
+	<circle cx="10" cy="10" r="1.5" fill="currentColor"
+		data-fg-dag81="1.30:50.5110:/src/app/pages/Home.tsx:191:7:7520:54:e:circle"></circle>
+	<circle cx="15" cy="10" r="1.5" fill="currentColor"
+		data-fg-dag82="1.30:50.5110:/src/app/pages/Home.tsx:192:7:7581:54:e:circle"></circle>
+</svg>

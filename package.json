@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "color-diff": "^1.4.0",
+    "fast-pixelizer": "^1.2.0"
+  }
+}

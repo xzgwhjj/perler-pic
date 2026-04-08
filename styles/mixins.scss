@@ -1,0 +1,77 @@
+// 常用样式混入
+
+// 渐变背景
+@mixin gradient-bg {
+  background: linear-gradient(135deg, #4ecdc4 0%, #44a08d 100%);
+}
+
+// 卡片样式
+@mixin card {
+  background: #ffffff;
+  border-radius: 28rpx;
+  box-shadow: 0 4rpx 20rpx rgba(78, 205, 196, 0.08);
+}
+
+// 按钮样式
+@mixin button-primary {
+  background: linear-gradient(135deg, #4ecdc4 0%, #44a08d 100%);
+  color: #ffffff;
+  border-radius: 50rpx;
+  box-shadow: 0 8rpx 24rpx rgba(78, 205, 196, 0.3);
+}
+
+// 按钮样式 - 次要
+@mixin button-secondary {
+  background: #ffffff;
+  color: #4ecdc4;
+  border: 2rpx solid #4ecdc4;
+  border-radius: 50rpx;
+}
+
+// 输入框样式
+@mixin input {
+  background: #ffffff;
+  border: 1rpx solid #e5e5e5;
+  border-radius: 16rpx;
+  color: #333333;
+  font-size: 26rpx;
+}
+
+// 标签样式
+@mixin tag {
+  padding: 8rpx 16rpx;
+  background: linear-gradient(135deg, #e8f5e9 0%, #f0f7f4 100%);
+  border-radius: 12rpx;
+  font-size: 22rpx;
+  color: #44a08d;
+}
+
+// 滚动隐藏
+@mixin scrollbar-hide {
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+// 居中
+@mixin center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+// 文字溢出省略
+@mixin text-ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+// 两行文字溢出省略
+@mixin text-ellipsis-2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}

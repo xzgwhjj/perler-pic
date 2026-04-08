@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="#99a1af"
+	data-fg-otk107="1.33:47.5089:/src/app/pages/Generate.tsx:290:5:10168:564:e:svg:xtetete:1" data-fgid-otk107=":r10v:"
+	data-fg-callsite-otk22="">
+	<path d="M4 5L8 2L12 5\" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"
+		data-fg-otk109="1.33:47.5089:/src/app/pages/Generate.tsx:292:7:10265:163:e:path"></path>
+	<path d="M8 2V14\" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"
+		data-fg-otk110="1.33:47.5089:/src/app/pages/Generate.tsx:299:7:10435:157:e:path"></path>
+	<circle cx="8" cy="11" r="2" stroke="currentColor" stroke-width="1.2"
+		data-fg-otk111="1.33:47.5089:/src/app/pages/Generate.tsx:306:7:10599:122:e:circle"></circle>
+</svg>

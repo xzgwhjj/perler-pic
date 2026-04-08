@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none"
+	data-fg-otk120="1.33:47.5089:/src/app/pages/Generate.tsx:368:5:12086:1028:e:svg:xtetxtetetete:1"
+	data-fgid-otk120=":r112:" data-fg-callsite-otk25="">
+	<rect x="4" y="4" width="8" height="8" stroke="#99a1af" stroke-width="1.2" stroke-linecap="round"
+		stroke-linejoin="round" data-fg-otk122="1.33:47.5089:/src/app/pages/Generate.tsx:370:7:12180:204:e:rect"></rect>
+	<path d="M4 4L2 2\" stroke="#99a1af" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"
+		data-fg-otk124="1.33:47.5089:/src/app/pages/Generate.tsx:381:7:12442:158:e:path"></path>
+	<path d="M12 4L14 2\" stroke="#99a1af" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"
+		data-fg-otk125="1.33:47.5089:/src/app/pages/Generate.tsx:388:7:12607:160:e:path"></path>
+	<path d="M4 12L2 14\" stroke="#99a1af" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"
+		data-fg-otk126="1.33:47.5089:/src/app/pages/Generate.tsx:395:7:12774:160:e:path"></path>
+	<path d="M12 12L14 14\" stroke="#99a1af" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"
+		data-fg-otk127="1.33:47.5089:/src/app/pages/Generate.tsx:402:7:12941:162:e:path"></path>
+</svg>

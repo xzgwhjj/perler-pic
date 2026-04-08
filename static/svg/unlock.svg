@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 18 18" fill="none"
+	data-fg-dag97="1.30:50.5110:/src/app/pages/Home.tsx:251:5:9023:601:e:svg:xtetxtetxte:1" data-fgid-dag97=":r1hc:"
+	data-fg-callsite-dag61="">
+	<rect x="5" y="8" width="8" height="7" rx="1.5" stroke="#4a5565" stroke-width="1.2"
+		data-fg-dag99="1.30:50.5110:/src/app/pages/Home.tsx:253:7:9114:152:e:rect"></rect>
+	<path d="M11.5 8V5.5C11.5 4.11929 12.6193 3 14 3C15.3807 3 16.5 4.11929 16.5 5.5V7" stroke="#4a5565"
+		stroke-width="1.2" stroke-linecap="round"
+		data-fg-dag101="1.30:50.5110:/src/app/pages/Home.tsx:263:7:9307:186:e:path"></path>
+	<circle cx="9" cy="11.5" r="1" fill="#4a5565"
+		data-fg-dag103="1.30:50.5110:/src/app/pages/Home.tsx:270:7:9522:91:e:circle"></circle>
+</svg>

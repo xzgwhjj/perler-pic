@@ -1,0 +1,98 @@
+@charset "UTF-8";
+/* 现代简洁风格 */
+:root {
+  /* 背景色 */
+  --bg-primary: #ffffff;
+  --bg-secondary: #f8f9fa;
+  --bg-tertiary: #f0f2f5;
+  --bg-card: #ffffff;
+  /* 强调色 - 浅蓝色 */
+  --accent-primary: #5cadfd;
+  --accent-light: #eff6ff;
+  --accent-light-2: #bedbff;
+  --accent-light-3: #93c5fd;
+  --accent-hover: #357abd;
+  /* 文字色 */
+  --text-primary: #101828;
+  --text-secondary: #6a7282;
+  --text-tertiary: #4a5565;
+  --text-muted: #99a1af;
+  --text-light: #d1d5dc;
+  --text-lighter: #f5f5f5;
+  /* 边框 */
+  --border-light: #e8e8e8;
+  --border-medium: #ebe6e7;
+  /* 功能色 */
+  --color-success: #52c41a;
+  --color-warning: #faad14;
+  --color-error: #f5222d;
+  /* 阴影 */
+  --shadow-sm: 0 2rpx 8rpx rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4rpx 16rpx rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 8rpx 32rpx rgba(0, 0, 0, 0.12);
+  /* 圆角 - 圆润 */
+  --radius-sm: 16rpx;
+  --radius-md: 24rpx;
+  --radius-lg: 32rpx;
+  --radius-xl: 48rpx;
+  --radius-full: 9999rpx;
+  /* 间距 */
+  --space-xs: 8rpx;
+  --space-sm: 16rpx;
+  --space-md: 24rpx;
+  --space-lg: 32rpx;
+  --space-xl: 48rpx;
+  --space-2xl: 64rpx;
+  /* 字体 */
+  --text-xs: 22rpx;
+  --text-sm: 26rpx;
+  --text-base: 28rpx;
+  --text-lg: 36rpx;
+  --text-xl: 44rpx;
+  --text-2xl: 56rpx;
+}
+
+/* 卡片 */
+.card {
+  background: var(--bg-card);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  border: 1rpx solid var(--border-light);
+}
+
+/* 按钮 */
+.btn {
+  border-radius: var(--radius-md);
+  font-size: var(--text-base);
+  font-weight: 500;
+  transition: all 0.2s ease;
+  border: none;
+}
+
+.btn-primary {
+  background: var(--accent-primary);
+  color: white;
+}
+
+.btn-primary:active {
+  background: var(--accent-hover);
+}
+
+.btn-secondary {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 1rpx solid var(--border-medium);
+}
+
+/* 选中标签 */
+.tag-active {
+  background: var(--accent-light);
+  color: var(--accent-primary);
+  border: 1rpx solid var(--accent-primary);
+}
+
+.tag-default {
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  border: 1rpx solid var(--border-light);
+}

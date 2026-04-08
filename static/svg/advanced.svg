@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="none">
+	<!-- 大圆角四角星 -->
+	<path d="M6 6 L10 3 L14 6 L17 10 L14 14 L10 17 L6 14 L3 10 Z" fill="#93c5fd" stroke-linejoin="round"
+		stroke-width="0.8" stroke="#eff6ff" />
+	<!-- 右上角小四角星 -->
+	<path d="M15 4 L16 3 L17 4 L16 5 Z" fill="#8a94a5" stroke-linejoin="round" stroke-width="0.6" stroke="#bedbff" />
+</svg>
