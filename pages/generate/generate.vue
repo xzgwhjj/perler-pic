@@ -398,9 +398,9 @@ import {
 	ref
 } from 'vue'
 
-// Canvas显示尺寸（CSS像素）- 与CSS中的1200rpx保持一致
-const CANVAS_DISPLAY_SIZE = 1200
-let canvasSize = 1200 // 默认值，会在初始化时更新
+// Canvas显示尺寸（绘制像素）- 5倍放大绘制：3000px绘制，600rpx显示
+const CANVAS_DISPLAY_SIZE = 3000
+let canvasSize = 600 // 容器显示尺寸为600rpx
 
 // 获取设备像素比（适配高清屏）
 const getPixelRatio = (ctx) => {
@@ -1380,8 +1380,10 @@ function drawPerlerResult(result, colorPalette, showColorCode = true) {
 	// 清空画布
 	mainCtx.clearRect(0, 0, displaySize, displaySize)
 
-	// 高清绘制：在1200px画布上绘制，浏览器会自动缩放到600rpx显示
-	// 不需要手动scale，浏览器会处理高清缩放
+	// 5倍高清缩放：将绘制内容放大5倍（3000px绘制，600rpx显示）
+	const scaleRatio = displaySize / canvasSize
+	mainCtx.save()
+	mainCtx.scale(scaleRatio, scaleRatio)
 
 	// 计算布局 - 根据钉数动态调整边距（密度越高，边距越小）
 	let margin
@@ -1420,9 +1422,9 @@ function drawPerlerResult(result, colorPalette, showColorCode = true) {
 	// 更新显示的格子大小
 	cellSizeDisplay.value = Math.round(cellSize * 10) / 10
 
-	// 让图纸从左上角开始绘制，显示满容器（不移除居中计算，但startX/startY设为0）
-	const startX = 0
-	const startY = 0
+	// 计算居中位置（在缩放后的坐标系中）
+	const startX = (canvasSize - N * cellSize) / 2
+	const startY = (canvasSize - M * cellSize) / 2
 
 	// 绘制拼豆
 	for (let y = 0; y < M; y++) {
@@ -1431,8 +1433,8 @@ function drawPerlerResult(result, colorPalette, showColorCode = true) {
 			if (!pixel.isExternal && pixel.key !== 'TRANSPARENT') {
 				mainCtx.fillStyle = pixel.color
 				mainCtx.fillRect(
-					x * cellSize,
-					y * cellSize,
+					startX + x * cellSize,
+					startY + y * cellSize,
 					cellSize,
 					cellSize
 				)
@@ -1542,6 +1544,9 @@ function drawPerlerResult(result, colorPalette, showColorCode = true) {
 			duration: 3000
 		})
 	}
+
+	// 恢复缩放设置
+	mainCtx.restore()
 }
 
 /**
