@@ -6,11 +6,15 @@
 			<image src="/static/svg/floating-restore.svg" class="restore-icon"></image>
 		</view>
 
-		<!-- 图纸预览 -->
-		<view class="preview-section" :class="{ 'floating': isFloating && !showExportSettingsDialog }"
-			:style="floatingStyle" @touchend="onFloatEnd" @mouseup="onFloatMouseUp">
-			<view class="section-header" @touchstart="onFloatStart" @touchmove="onFloatMove"
-				@mousedown="onFloatMouseDown" @mousemove="onFloatMouseMove">
+		<!-- 【修改】图纸预览浮窗部分 -->
+		<view class="preview-section"
+			:class="{ 'floating': isFloating && !showExportSettingsDialog, 'dragging': isFloatingDragging }"
+			:style="isFloating ? { left: floatX + 'rpx', top: floatY + 'rpx', width: floatWidth + 'rpx', height: floatHeight + 'rpx' } : {}"
+			@touchend="onFloatEnd" @mouseup="onFloatEnd" @mouseleave="onFloatEnd">
+			<!-- 【修改】浮窗头部 -->
+			<view class="section-header" @touchstart="onFloatStart" @mousedown="onFloatStart"
+				@touchmove.stop.prevent="onFloatMove" @mousemove.stop.prevent="onFloatMove" @mouseup="onFloatEnd"
+				@mouseleave="onFloatEnd">
 				<text class="section-title">图纸</text>
 				<text class="section-subtitle">
 					{{ pixelWidth || selectedSize }}×{{ pixelHeight || selectedSize }} ({{
@@ -21,7 +25,7 @@
 					</text>
 				</text>
 				<view class="header-actions">
-					<view class="action-icon" @click.stop="showExportSettings" v-if="isFloating">
+					<view class="action-icon" @click.stop="showExportSettings" v-if="!isFloating">
 						<image src="/static/svg/settings.svg" class="settings-icon"></image>
 					</view>
 					<view class="action-icon" @click.stop="handleFloatingClick" :class="{ 'active': isFloating }">
@@ -43,13 +47,17 @@
 				<!-- 浮窗缩放手柄 -->
 				<template v-if="isFloating">
 					<view class="resize-handle resize-handle-nw" @touchstart.prevent="onResizeStart('nw', $event)"
-						@mousedown.prevent="onResizeMouseDown('nw', $event)"></view>
+						@mousedown.prevent="onResizeMouseDown('nw', $event)" @touchmove.prevent="onResizeMove"
+						@mousemove.prevent="onResizeMove"></view>
 					<view class="resize-handle resize-handle-ne" @touchstart.prevent="onResizeStart('ne', $event)"
-						@mousedown.prevent="onResizeMouseDown('ne', $event)"></view>
+						@mousedown.prevent="onResizeMouseDown('ne', $event)" @touchmove.prevent="onResizeMove"
+						@mousemove.prevent="onResizeMove"></view>
 					<view class="resize-handle resize-handle-sw" @touchstart.prevent="onResizeStart('sw', $event)"
-						@mousedown.prevent="onResizeMouseDown('sw', $event)"></view>
+						@mousedown.prevent="onResizeMouseDown('sw', $event)" @touchmove.prevent="onResizeMove"
+						@mousemove.prevent="onResizeMove"></view>
 					<view class="resize-handle resize-handle-se" @touchstart.prevent="onResizeStart('se', $event)"
-						@mousedown.prevent="onResizeMouseDown('se', $event)"></view>
+						@mousedown.prevent="onResizeMouseDown('se', $event)" @touchmove.prevent="onResizeMove"
+						@mousemove.prevent="onResizeMove"></view>
 				</template>
 
 				<view class="canvas-container" :style="canvasContainerStyle">
@@ -413,7 +421,7 @@ const getPixelRatio = (ctx) => {
 		return 2 // 默认返回2倍，确保高清
 	}
 	// #endif
-	
+
 	// #ifndef MP-WEIXIN
 	// H5或其他环境使用原生API
 	const backingStore = ctx.backingStorePixelRatio ||
@@ -425,6 +433,12 @@ const getPixelRatio = (ctx) => {
 	return (window.devicePixelRatio || 1) / backingStore;
 	// #endif
 }
+
+// 【替换/新增】微信小程序：缓存系统信息，纯rpx计算
+const systemInfo = uni.getSystemInfoSync()
+const screenWidthRpx = 750 // 微信小程序固定：屏幕宽度=750rpx
+const screenHeightRpx = systemInfo.windowHeight * (750 / systemInfo.windowWidth) // 屏幕高度(rpx)
+const px2rpx = 750 / systemInfo.windowWidth // px转rpx系数
 
 // 核心转换设置 - 拼豆最优默认值
 const showSettings = ref(true)
@@ -490,64 +504,84 @@ const restoreFloatingWindow = () => {
 	floatHeight.value = 400
 	isFloating.value = true
 	isFloatingMinimized.value = false
+	isFloatingDragging.value = false // 重置拖拽状态，避免残留
 }
 
-// 浮窗缩放
+// 【替换】触摸缩放开始
 const onResizeStart = (handle, e) => {
 	if (!isFloating.value) return
 	isResizing.value = true
 	resizeHandle.value = handle
 	const touch = e.touches[0]
-	lastResizeX.value = touch.clientX
-	lastResizeY.value = touch.clientY
+	// 【新增】px转rpx
+	lastResizeX.value = touch.clientX * px2rpx
+	lastResizeY.value = touch.clientY * px2rpx
 	e.preventDefault()
 	e.stopPropagation()
 }
 
+// 【替换】鼠标缩放开始
 const onResizeMouseDown = (handle, e) => {
 	if (!isFloating.value) return
 	isResizing.value = true
 	resizeHandle.value = handle
-	lastResizeX.value = e.clientX
-	lastResizeY.value = e.clientY
+	// 【新增】px转rpx
+	lastResizeX.value = e.clientX * px2rpx
+	lastResizeY.value = e.clientY * px2rpx
 	e.preventDefault()
 	e.stopPropagation()
 }
 
+// 【替换】缩放移动逻辑（纯rpx计算，在模板中绑定事件调用）
 const onResizeMove = (e) => {
 	if (!isResizing.value || !isFloating.value) return
+	e.preventDefault()
 
-	const currentX = e.clientX || e.touches[0].clientX
-	const currentY = e.clientY || e.touches[0].clientY
-	const deltaX = currentX - lastResizeX.value
-	const deltaY = currentY - lastResizeY.value
+	// 兼容触摸和鼠标
+	const clientX = e.clientX || (e.touches && e.touches[0].clientX)
+	const clientY = e.clientY || (e.touches && e.touches[0].clientY)
+	if (!clientX || !clientY) return
 
-	// 根据手柄类型调整大小和位置
+	// px转rpx
+	const currentXRpx = clientX * px2rpx
+	const currentYRpx = clientY * px2rpx
+	const deltaXRpx = currentXRpx - lastResizeX.value
+	const deltaYRpx = currentYRpx - lastResizeY.value
+
+	// 缩放边界（rpx）
+	const minSize = 200
+	const maxSize = 600
+
+	// 按手柄类型调整
 	switch (resizeHandle.value) {
-		case 'se': // 右下角 - 只调整大小
-			floatWidth.value = Math.max(200, Math.min(600, floatWidth.value + deltaX * 2)) // rpx转换
-			floatHeight.value = Math.max(200, Math.min(600, floatHeight.value + deltaY * 2))
+		case 'se': // 右下角
+			floatWidth.value = Math.max(minSize, Math.min(maxSize, floatWidth.value + deltaXRpx))
+			floatHeight.value = Math.max(minSize, Math.min(maxSize, floatHeight.value + deltaYRpx))
 			break
-		case 'sw': // 左下角 - 调整大小和X位置
-			floatWidth.value = Math.max(200, Math.min(600, floatWidth.value - deltaX * 2))
-			floatHeight.value = Math.max(200, Math.min(600, floatHeight.value + deltaY * 2))
-			floatX.value += deltaX
+		case 'sw': // 左下角
+			const newSwWidth = Math.max(minSize, Math.min(maxSize, floatWidth.value - deltaXRpx))
+			floatX.value += (floatWidth.value - newSwWidth)
+			floatWidth.value = newSwWidth
+			floatHeight.value = Math.max(minSize, Math.min(maxSize, floatHeight.value + deltaYRpx))
 			break
-		case 'ne': // 右上角 - 调整大小和Y位置
-			floatWidth.value = Math.max(200, Math.min(600, floatWidth.value + deltaX * 2))
-			floatHeight.value = Math.max(200, Math.min(600, floatHeight.value - deltaY * 2))
-			floatY.value += deltaY
+		case 'ne': // 右上角
+			const newNeHeight = Math.max(minSize, Math.min(maxSize, floatHeight.value - deltaYRpx))
+			floatY.value += (floatHeight.value - newNeHeight)
+			floatHeight.value = newNeHeight
+			floatWidth.value = Math.max(minSize, Math.min(maxSize, floatWidth.value + deltaXRpx))
 			break
-		case 'nw': // 左上角 - 调整大小和XY位置
-			floatWidth.value = Math.max(200, Math.min(600, floatWidth.value - deltaX * 2))
-			floatHeight.value = Math.max(200, Math.min(600, floatHeight.value - deltaY * 2))
-			floatX.value += deltaX
-			floatY.value += deltaY
+		case 'nw': // 左上角
+			const newNwWidth = Math.max(minSize, Math.min(maxSize, floatWidth.value - deltaXRpx))
+			const newNwHeight = Math.max(minSize, Math.min(maxSize, floatHeight.value - deltaYRpx))
+			floatX.value += (floatWidth.value - newNwWidth)
+			floatY.value += (floatHeight.value - newNwHeight)
+			floatWidth.value = newNwWidth
+			floatHeight.value = newNwHeight
 			break
 	}
 
-	lastResizeX.value = currentX
-	lastResizeY.value = currentY
+	lastResizeX.value = currentXRpx
+	lastResizeY.value = currentYRpx
 }
 
 // 颜色聚类：存储图片主色（低精度合并杂色用）
@@ -896,7 +930,6 @@ const handleFloatingClick = (e) => {
 	toggleFloating()
 }
 
-// 浮窗功能
 const toggleFloating = () => {
 	console.log('toggleFloating called, current isFloating:', isFloating.value)
 	isFloating.value = !isFloating.value
@@ -905,17 +938,16 @@ const toggleFloating = () => {
 		// 初始化位置和缩放 - 图纸100%完整显示
 		floatX.value = 50
 		floatY.value = 100
-		zoomLevel.value = 1
-		panX.value = 0
-		panY.value = 0
 		floatWidth.value = 450
 		floatHeight.value = 450
 		isFloatingMinimized.value = false
 
-		// 延迟设置以确保DOM更新后计算
-		setTimeout(() => {
+		// 【修改】延迟增加到300ms，确保canvas渲染完成
+		const fitTimeout = setTimeout(() => {
+			fitCanvasToFloatingWindow() // 新增的适配函数
 			resetZoom()
-		}, 100)
+			clearTimeout(fitTimeout)
+		}, 300)
 	} else {
 		// 退出浮窗时重置
 		zoomLevel.value = 1
@@ -924,41 +956,146 @@ const toggleFloating = () => {
 	}
 }
 
-// 浮窗拖拽事件
-const onFloatStart = (e) => {
+// 【新增】微信小程序：图纸自适应浮窗并居中
+const fitCanvasToFloatingWindow = async () => {
 	if (!isFloating.value) return
+
+	// 等待canvas渲染完成（最多等500ms）
+	let canvasReady = false
+	let retryCount = 0
+	while (!canvasReady && retryCount < 5) {
+		await new Promise(resolve => setTimeout(resolve, 100))
+		const query = uni.createSelectorQuery().in(getCurrentPages()[getCurrentPages().length - 1])
+		await new Promise(resolve => {
+			query.select('#mainCanvas')
+				.fields({ node: true, size: true })
+				.exec((res) => {
+					if (res[0] && res[0].width > 0 && res[0].height > 0) {
+						canvasReady = true
+					}
+					resolve()
+				})
+		})
+		retryCount++
+	}
+
+	// 浮窗可视区域（rpx）：头部高度60rpx转px计算更准确
+	const floatWinWidthRpx = floatWidth.value
+	const floatWinHeightRpx = floatHeight.value - 60 // 减去头部高度
+	const floatWinWidthPx = floatWinWidthRpx / px2rpx
+	const floatWinHeightPx = floatWinHeightRpx / px2rpx
+
+	// 获取Canvas实际尺寸
+	const query = uni.createSelectorQuery().in(getCurrentPages()[getCurrentPages().length - 1])
+	query.select('#mainCanvas')
+		.fields({ node: true, size: true })
+		.exec((res) => {
+			if (!res[0]) return
+			const canvasWidthPx = res[0].width
+			const canvasHeightPx = res[0].height
+
+			// 计算等比缩放比例（以px为单位计算，避免rpx转换误差）
+			const scaleX = floatWinWidthPx / canvasWidthPx
+			const scaleY = floatWinHeightPx / canvasHeightPx
+			const fitScale = Math.min(scaleX, scaleY, 1) // 最大缩放1倍
+
+			// 计算居中偏移（px）
+			const offsetX = (floatWinWidthPx - canvasWidthPx * fitScale) / 2
+			const offsetY = (floatWinHeightPx - canvasHeightPx * fitScale) / 2
+
+			// 设置缩放和居中
+			zoomLevel.value = fitScale
+			panX.value = offsetX
+			panY.value = offsetY
+		})
+}
+
+// 浮窗拖拽事件 - 处理触摸和鼠标事件
+const onFloatStart = (e) => {
+	console.log('onFloatStart called, isFloating:', isFloating.value)
+	if (!isFloating.value) {
+		console.log('cannot drag: isFloating is false')
+		return
+	}
 	e.preventDefault()
-	const touch = e.touches[0]
+
 	isFloatingDragging.value = true
-	lastFloatX.value = touch.clientX
-	lastFloatY.value = touch.clientY
+	console.log('start dragging')
+	// 【新增】px转rpx记录初始坐标
+	// 处理触摸事件
+	if (e.touches && e.touches.length > 0) {
+		const touch = e.touches[0]
+		lastFloatX.value = touch.clientX * px2rpx
+		lastFloatY.value = touch.clientY * px2rpx
+		console.log('touch start at:', lastFloatX.value, lastFloatY.value)
+	}
+	// 处理鼠标事件
+	else if (e.clientX !== undefined) {
+		lastFloatX.value = e.clientX * px2rpx
+		lastFloatY.value = e.clientY * px2rpx
+		console.log('mouse start at:', lastFloatX.value, lastFloatY.value)
+	}
 }
 
 const onFloatMove = (e) => {
-	if (!isFloatingDragging.value) return
+	if (!isFloatingDragging.value || !isFloating.value) return
 	e.preventDefault()
-	const touch = e.touches[0]
-	const deltaX = touch.clientX - lastFloatX.value
-	const deltaY = touch.clientY - lastFloatY.value
+	e.stopPropagation()
+	console.log('onFloatMove called, dragging:', isFloatingDragging.value)
+	// 处理触摸事件
+	if (e.touches && e.touches.length > 0) {
+		const touch = e.touches[0]
+		// px转rpx
+		const currentXRpx = touch.clientX * px2rpx
+		const currentYRpx = touch.clientY * px2rpx
+		const deltaXRpx = currentXRpx - lastFloatX.value
+		const deltaYRpx = currentYRpx - lastFloatY.value
+		console.log('touch move delta:', deltaXRpx, deltaYRpx)
 
-	// 获取屏幕尺寸
-	const screenWidth = uni.getSystemInfoSync().windowWidth
-	const screenHeight = uni.getSystemInfoSync().windowHeight
+		// 优化边界：留出20rpx边距，避免浮窗贴边难拖拽
+		const minX = 20
+		const minY = 20
+		const maxX = screenWidthRpx - floatWidth.value - 20
+		const maxY = screenHeightRpx - floatHeight.value - 20
 
-	// 边界限制：允许浮窗部分移出屏幕，但最多移出50%（200rpx）
-	// 这样可以自由拖动，不会卡在边缘
-	const maxOffset = 200 // 最大偏移量
-	const minX = -maxOffset
-	const minY = -maxOffset
-	const maxX = screenWidth - floatWidth.value + maxOffset
-	const maxY = screenHeight - floatHeight.value + maxOffset
+		const newX = Math.max(minX, Math.min(maxX, floatX.value + deltaXRpx))
+		const newY = Math.max(minY, Math.min(maxY, floatY.value + deltaYRpx))
 
-	floatX.value = Math.max(minX, Math.min(maxX, floatX.value + deltaX))
-	floatY.value = Math.max(minY, Math.min(maxY, floatY.value + deltaY))
+		console.log('new position:', newX, newY)
 
-	lastFloatX.value = touch.clientX
-	lastFloatY.value = touch.clientY
+		floatX.value = newX
+		floatY.value = newY
+
+		lastFloatX.value = currentXRpx
+		lastFloatY.value = currentYRpx
+	}// 处理鼠标事件
+	else if (e.clientX !== undefined) {
+		const currentXRpx = e.clientX * px2rpx
+		const currentYRpx = e.clientY * px2rpx
+		const deltaXRpx = currentXRpx - lastFloatX.value
+		const deltaYRpx = currentYRpx - lastFloatY.value
+
+		console.log('mouse move delta:', deltaXRpx, deltaYRpx)
+
+		// 优化边界：留出20rpx边距，避免浮窗贴边难拖拽
+		const minX = 20
+		const minY = 20
+		const maxX = screenWidthRpx - floatWidth.value - 20
+		const maxY = screenHeightRpx - floatHeight.value - 20
+
+		const newX = Math.max(minX, Math.min(maxX, floatX.value + deltaXRpx))
+		const newY = Math.max(minY, Math.min(maxY, floatY.value + deltaYRpx))
+
+		console.log('new position:', newX, newY)
+
+		floatX.value = newX
+		floatY.value = newY
+
+		lastFloatX.value = currentXRpx
+		lastFloatY.value = currentYRpx
+	}
 }
+
 
 const onFloatEnd = () => {
 	isFloatingDragging.value = false
@@ -966,53 +1103,8 @@ const onFloatEnd = () => {
 	resizeHandle.value = ''
 }
 
-// // 添加 window 事件监听
-// onMounted(() => {
-// 	window.addEventListener('mousemove', onResizeMove)
-// 	window.addEventListener('mouseup', onFloatEnd)
-// 	window.addEventListener('touchmove', onResizeMove, { passive: false })
-// 	window.addEventListener('touchend', onFloatEnd)
-// })
 
-// onUnmounted(() => {
-// 	window.removeEventListener('mousemove', onResizeMove)
-// 	window.removeEventListener('mouseup', onFloatEnd)
-// 	window.removeEventListener('touchmove', onResizeMove)
-// 	window.removeEventListener('touchend', onFloatEnd)
-// })
 
-// 浮窗鼠标拖拽
-const onFloatMouseDown = (e) => {
-	if (!isFloating.value) return
-	e.preventDefault()
-	isFloatingDragging.value = true
-	lastFloatX.value = e.clientX
-	lastFloatY.value = e.clientY
-}
-
-const onFloatMouseMove = (e) => {
-	if (!isFloatingDragging.value) return
-	e.preventDefault()
-	const deltaX = e.clientX - lastFloatX.value
-	const deltaY = e.clientY - lastFloatY.value
-
-	// 获取屏幕尺寸
-	const screenWidth = uni.getSystemInfoSync().windowWidth
-	const screenHeight = uni.getSystemInfoSync().windowHeight
-
-	// 边界限制：允许浮窗部分移出屏幕，但最多移出50%（200rpx）
-	const maxOffset = 200
-	const minX = -maxOffset
-	const minY = -maxOffset
-	const maxX = screenWidth - floatWidth.value + maxOffset
-	const maxY = screenHeight - floatHeight.value + maxOffset
-
-	floatX.value = Math.max(minX, Math.min(maxX, floatX.value + deltaX))
-	floatY.value = Math.max(minY, Math.min(maxY, floatY.value + deltaY))
-
-	lastFloatX.value = e.clientX
-	lastFloatY.value = e.clientY
-}
 
 const onFloatMouseUp = () => {
 	isFloatingDragging.value = false
@@ -1264,28 +1356,28 @@ const processImage = async () => {
 		}
 
 		console.log('🔄 开始初始化Canvas...')
-		
+
 		// 1. 初始化Canvas
 		const canvasRes = await getCanvasInstance('mainCanvas')
 		console.log('📊 mainCanvas获取结果:', canvasRes)
-		
+
 		if (!canvasRes || !canvasRes.canvas || !canvasRes.ctx) {
 			console.error('❌ 主Canvas初始化失败:', { canvasRes })
 			throw new Error(`主Canvas初始化失败: ${JSON.stringify(canvasRes)}`)
 		}
-		
+
 		mainCanvas = canvasRes.canvas
 		mainCtx = canvasRes.ctx
 		console.log('✅ 主Canvas初始化成功:', { mainCanvas, mainCtx })
 
 		const processRes = await getCanvasInstance('processCanvas')
 		console.log('📊 processCanvas获取结果:', processRes)
-		
+
 		if (!processRes || !processRes.canvas || !processRes.ctx) {
 			console.error('❌ 处理Canvas初始化失败:', { processRes })
 			throw new Error(`处理Canvas初始化失败: ${JSON.stringify(processRes)}`)
 		}
-		
+
 		processCanvas = processRes.canvas
 		processCtx = processRes.ctx
 		console.log('✅ 处理Canvas初始化成功:', { processCanvas, processCtx })
@@ -1411,7 +1503,7 @@ function drawPerlerResult(result, colorPalette, showColorCode = true) {
 	const scaleX = targetWidth / N
 	const scaleY = targetHeight / M
 	let cellSize = Math.min(scaleX, scaleY)
-	
+
 	// 确保格子大小最小为22px（用户要求）- 优先满足，图纸可能会超出容器
 	const MIN_CELL_SIZE = 22
 	if (cellSize < MIN_CELL_SIZE) {
@@ -1935,6 +2027,13 @@ const regenerate = () => {
 	} else {
 		generateDemoImage()
 	}
+	// 生成完成后，如果是浮窗状态，重新适配居中
+	if (isFloating.value) {
+		const fitTimeout = setTimeout(() => {
+			fitCanvasToFloatingWindow() // 新增的适配函数
+			clearTimeout(fitTimeout)
+		}, 300)
+	}
 }
 
 // 自动选择最优板子尺寸
@@ -2081,7 +2180,7 @@ onLoad(async (options) => {
 // 在DOM准备好后生成图纸
 onMounted(() => {
 	console.log('🎯 DOM已准备好，开始生成图纸...')
-	
+
 	// 动态获取Canvas显示尺寸
 	setTimeout(async () => {
 		try {
@@ -2127,9 +2226,24 @@ onMounted(() => {
 	margin-bottom: 24rpx;
 	transition: all 0.3s ease;
 
+	/* 【修改】浮窗样式 */
 	&.floating {
+		position: fixed;
+
+		/* 【新增】覆盖原top */
+		transform: none !important;
+		/* 【新增】禁用原transform，用JS控制left/top */
+		z-index: 9999;
+		box-shadow: 0 8rpx 32rpx rgba(0, 0, 0, 0.2);
+		transition: left 0.05s ease-out, top 0.05s ease-out;
+		/* 【修改】调整过渡时间，更流畅 */
 		border-radius: 24rpx;
 		overflow: hidden;
+	}
+
+	/* 【新增】拖拽时禁用过渡动画，避免卡顿 */
+	&.dragging {
+		transition: none !important;
 	}
 
 	&.sticky {
@@ -2142,20 +2256,20 @@ onMounted(() => {
 		box-shadow: 0 4rpx 16rpx rgba(0, 0, 0, 0.08);
 	}
 
-		&.floating-window {
-			position: fixed;
-			top: 100rpx;
-			right: 24rpx;
-			width: 400rpx;
-			height: 400rpx;
-			z-index: 1000;
-			box-shadow: 0 8rpx 32rpx rgba(0, 0, 0, 0.3);
-			border-radius: 16rpx;
-			overflow: hidden;
-			background: #ffffff;
-			transition: none; // 拖拽时禁用过渡效果
-			cursor: move;
-			padding: 0; // 浮窗模式去掉padding，让图纸占满
+	&.floating-window {
+		position: fixed;
+		top: 100rpx;
+		right: 24rpx;
+		width: 400rpx;
+		height: 400rpx;
+		z-index: 1000;
+		box-shadow: 0 8rpx 32rpx rgba(0, 0, 0, 0.3);
+		border-radius: 16rpx;
+		overflow: hidden;
+		background: #ffffff;
+		transition: none; // 拖拽时禁用过渡效果
+		cursor: move;
+		padding: 0; // 浮窗模式去掉padding，让图纸占满
 
 		.canvas-container {
 			width: 100% !important;
@@ -2163,36 +2277,36 @@ onMounted(() => {
 			margin: -32rpx; // 抵消preview-card的padding，让Canvas占满容器
 			box-sizing: border-box;
 
-					.pd-canvas {
-						width: 100% !important;
-						height: 100% !important;
-						display: block; // 移除图片默认的底部间隙
-					}
-		}
-
-			.zoom-controls {
-				position: absolute;
-				bottom: 16rpx;
-				left: 50%;
-				transform: translateX(-50%);
-				background: rgba(0, 0, 0, 0.7);
-				border-radius: 24rpx;
-				padding: 8rpx;
-				z-index: 10;
-
-				.zoom-btn {
-					width: 48rpx;
-					height: 48rpx;
-					font-size: 24rpx;
-				}
-
-				.zoom-level {
-					font-size: 20rpx;
-					min-width: 60rpx;
-					color: white;
-				}
+			.pd-canvas {
+				width: 100% !important;
+				height: 100% !important;
+				display: block; // 移除图片默认的底部间隙
 			}
 		}
+
+		.zoom-controls {
+			position: absolute;
+			bottom: 16rpx;
+			left: 50%;
+			transform: translateX(-50%);
+			background: rgba(0, 0, 0, 0.7);
+			border-radius: 24rpx;
+			padding: 8rpx;
+			z-index: 10;
+
+			.zoom-btn {
+				width: 48rpx;
+				height: 48rpx;
+				font-size: 24rpx;
+			}
+
+			.zoom-level {
+				font-size: 20rpx;
+				min-width: 60rpx;
+				color: white;
+			}
+		}
+	}
 
 	&.floating .section-header {
 		cursor: move;
@@ -2823,41 +2937,49 @@ onMounted(() => {
 	}
 }
 
-/* 浮窗缩放手柄 */
+/* 【修改】浮窗缩放手柄 */
 .resize-handle {
 	position: absolute;
-	width: 32rpx;
-	height: 32rpx;
-	background: #1a1a2e;
-	border: 3rpx solid #ffffff;
-	border-radius: 50%;
+	width: 60rpx;
+	/* 【修改】从32rpx扩大到60rpx */
+	height: 60rpx;
+	/* 【修改】从32rpx扩大到60rpx */
+	background: transparent;
+	/* 【修改】透明不挡视线 */
+	border: none;
+	/* 【修改】去掉原有的边框 */
 	z-index: 10000;
-	/* 最高层级 */
-	cursor: pointer;
 	touch-action: none;
-	box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.3);
 
 	&.resize-handle-nw {
-		top: -12rpx;
-		left: -12rpx;
+		top: -30rpx;
+		/* 【修改】从-12rpx调整到-30rpx */
+		left: -30rpx;
+		/* 【修改】从-12rpx调整到-30rpx */
 		cursor: nw-resize;
 	}
 
 	&.resize-handle-ne {
-		top: -12rpx;
-		right: -12rpx;
+		top: -30rpx;
+		/* 【修改】从-12rpx调整到-30rpx */
+		right: -30rpx;
+		/* 【修改】从-12rpx调整到-30rpx */
 		cursor: ne-resize;
 	}
 
 	&.resize-handle-sw {
-		bottom: -12rpx;
-		left: -12rpx;
+		bottom: -30rpx;
+		/* 【修改】从-12rpx调整到-30rpx */
+		left: -30rpx;
+		/* 【修改】从-12rpx调整到-30rpx */
 		cursor: sw-resize;
 	}
 
 	&.resize-handle-se {
-		bottom: -12rpx;
-		right: -12rpx;
+		bottom: -30rpx;
+		/* 【修改】从-12rpx调整到-30rpx */
+		right: -30rpx;
+		/* 【修改】从-12rpx调整到-30rpx */
 		cursor: se-resize;
 	}
 }
