@@ -19,10 +19,6 @@
 				<text class="section-subtitle">
 					{{ pixelWidth || selectedSize }}×{{ pixelHeight || selectedSize }} ({{
 						boardLayout.totalBoards }}个{{ selectedBoardSize }}×{{ selectedBoardSize }}板)
-					<text v-if="showColorCode && cellSizeDisplay < 14"
-						style="color: #ff9800; font-size: 10px; margin-left: 8px;">
-						⚠️ 钉数过多，建议放大查看
-					</text>
 				</text>
 				<view class="header-actions">
 					<view class="action-icon" @click.stop="showExportSettings" v-if="!isFloating">
@@ -59,15 +55,20 @@
 						@mousedown.prevent="onResizeMouseDown('se', $event)" @touchmove.prevent="onResizeMove"
 						@mousemove.prevent="onResizeMove"></view>
 				</template>
-
-				<view class="canvas-container" :style="canvasContainerStyle">
+				<movable-area :scale-area="true" class="canvas-container" :style="canvasContainerStyle">
+					<movable-view :scale="true" direction="all" :scale-value="isFloating ? 0.5 : 1" class="canvas-drag-container"
+						:style="dragContainerStyle" @scale="onScale">
+						<canvas type="2d" id="mainCanvas" class="pd-canvas" :style="canvasStyle" />
+					</movable-view>
+				</movable-area>
+				<!-- <view class="canvas-container" :style="canvasContainerStyle">
 					<view class="canvas-drag-container" :style="dragContainerStyle" @touchstart="onDragStart"
 						@touchmove="onDragMove" @touchend="onDragEnd" @mousedown="onMouseDragStart"
 						@mousemove="onMouseDragMove" @mouseup="onMouseDragEnd" @mouseleave="onMouseDragEnd"
 						@wheel="onWheel">
 						<canvas type="2d" id="mainCanvas" class="pd-canvas" :style="canvasStyle" />
 					</view>
-				</view>
+				</view> -->
 				<view class="zoom-controls" v-if="isFullscreen">
 					<view class="zoom-btn" @click="zoomOut">
 						<text>−</text>
@@ -584,6 +585,13 @@ const onResizeMove = (e) => {
 	lastResizeY.value = currentYRpx
 }
 
+// 缩放
+const onScale = (event) => {
+	console.log("当前:", event)
+	const scale = event.detail.scale
+	console.log("当前缩放比例:", scale)
+}
+
 // 颜色聚类：存储图片主色（低精度合并杂色用）
 const imageMainColors = ref([])
 // 新增专业级设置
@@ -672,14 +680,30 @@ const canvasContainerStyle = computed(() => {
 			maxHeight: '100vh'
 		}
 	}
+	if (isFloating.value) {
+		return {
+			width: `${floatWidth.value}rpx`,
+			height: `${floatHeight.value}rpx`,
+			overflow: 'hidden',
+			touchAction: 'none'
+		}
+	}
 	return {
+		width: '600rpx',
+		height: '600rpx',
 		overflow: 'hidden',
 		touchAction: 'none' // 禁用默认触摸行为，避免页面滚动
 	}
 })
 
 const dragContainerStyle = computed(() => {
+	console.log("当前宽度:", floatWidth.value)
+	console.log("当前高度:", floatHeight.value)
+	console.log("当前X:", panX.value)
+	console.log("当前Y:", panY.value)
 	return {
+		width: isFullscreen.value ? `${floatWidth.value}rpx` : '600rpx',
+		height: isFullscreen.value ? `${floatHeight.value}rpx` : '600rpx',
 		transform: `translate(${panX.value}px, ${panY.value}px)`,
 		transition: isDragging.value ? 'none' : 'transform 0.2s ease-out'
 	}
@@ -942,14 +966,14 @@ const toggleFloating = () => {
 		// 初始化位置和缩放 - 图纸100%完整显示
 		floatX.value = 50
 		floatY.value = 100
-		floatWidth.value = 450
-		floatHeight.value = 450
+		floatWidth.value = 400
+		floatHeight.value = 400
 		isFloatingMinimized.value = false
 
 		// 【修改】延迟增加到300ms，确保canvas渲染完成
 		const fitTimeout = setTimeout(() => {
 			fitCanvasToFloatingWindow() // 新增的适配函数
-			resetZoom()
+			// resetZoom()
 			clearTimeout(fitTimeout)
 		}, 300)
 	} else {
@@ -1483,23 +1507,23 @@ function drawPerlerResult(result, colorPalette, showColorCode = true) {
 
 	// 固定格子大小为22px（用户要求）
 	const cellSize = 22
-	
+
 	// 计算图纸原始尺寸
 	const originalWidth = N * cellSize
 	const originalHeight = M * cellSize
-	
+
 	// 计算缩放比例以适配容器（使用95%的容器大小，最大化利用空间）
 	const maxImageSize = canvasSize * 0.95
 	const scaleX = maxImageSize / originalWidth
 	const scaleY = maxImageSize / originalHeight
 	const zoomScale = Math.min(scaleX, scaleY, 1) // 最大为1（不放大）
-	
+
 	// 应用整体缩放
 	mainCtx.save()
 	mainCtx.scale(zoomScale, zoomScale)
-	
+
 	console.log(`📐 图纸适配: N=${N}, M=${M}, cellSize=${cellSize}px, zoomScale=${zoomScale.toFixed(2)}`)
-	
+
 	// 更新显示的格子大小和缩放级别
 	cellSizeDisplay.value = Math.round(cellSize * zoomScale * 10) / 10
 	zoomLevel.value = zoomScale
@@ -1631,11 +1655,11 @@ function drawPerlerResult(result, colorPalette, showColorCode = true) {
 	// 恢复图纸缩放和5倍高清缩放
 	mainCtx.restore() // 恢复图纸缩放
 	mainCtx.restore() // 恢复5倍高清缩放
-	
+
 	// 重置pan值为0（居中），确保图纸居中显示
 	panX.value = 0
 	panY.value = 0
-	
+
 	console.log(`✅ 图纸绘制完成: panX=${panX.value}, panY=${panY.value}, zoomLevel=${zoomLevel.value}`)
 }
 
@@ -1969,24 +1993,24 @@ const generateDemoImage = () => {
 	pdCanvas.value = uni.createCanvasContext('pdCanvas')
 
 	const gridSize = selectedSize.value
-	
+
 	// 固定格子大小为22px
 	const cellSize = 22
-	
+
 	// 计算缩放比例以适配窗口
 	const originalContentSize = gridSize * cellSize
 	const maxImageSize = canvasSize * 0.8
 	const zoomScale = Math.min(maxImageSize / originalContentSize, 1)
-	
+
 	// 更新显示的格子大小和缩放级别
 	cellSizeDisplay.value = Math.round(cellSize * zoomScale * 10) / 10
 	zoomLevel.value = zoomScale
-	
+
 	console.log(`📐 示例图纸适配: gridSize=${gridSize}, cellSize=${cellSize}px, zoomScale=${zoomScale.toFixed(2)}`)
 
 	pdCanvas.value.setFillStyle('#ffffff')
 	pdCanvas.value.fillRect(0, 0, canvasSize, canvasSize)
-	
+
 	// 应用整体缩放（不手动平移），让CSS flex自动居中
 	// 从左上角开始绘制
 	pdCanvas.value.scale(zoomScale, zoomScale)
@@ -2200,9 +2224,10 @@ onMounted(() => {
 	console.log('🎯 DOM已准备好，开始生成图纸...')
 
 	// 动态获取Canvas显示尺寸
-	setTimeout(async () => {
+	const timer = setTimeout(async () => {
 		try {
-			const query = uni.createSelectorQuery().in(this)
+			const query = uni.createSelectorQuery()
+			console.log('查询Canvas尺寸...', query)
 			query.select('#mainCanvas')
 				.boundingClientRect()
 				.exec((res) => {
@@ -2222,6 +2247,7 @@ onMounted(() => {
 			console.error('❌ 更新Canvas尺寸失败:', error)
 			regenerate()
 		}
+		clearTimeout(timer)
 	}, 300)
 })
 </script>
