@@ -685,12 +685,16 @@ const dragContainerStyle = computed(() => {
 	}
 })
 
+// 不使用CSS transform缩放，只用panX/panY做拖拽
 const canvasStyle = computed(() => {
 	return {
-		transform: `scale(${zoomLevel.value})`,
-		transformOrigin: 'center center'
+		width: '600rpx',
+		height: '600rpx',
+		display: 'block'
 	}
 })
+
+// 移除canvasWidth和canvasHeight计算属性，Canvas尺寸在JavaScript中设置
 
 const floatingStyle = computed(() => {
 	if (isFloating.value) {
@@ -1240,7 +1244,7 @@ const onGridColumnsChange = (e) => {
 	const newWidth = e.detail.value
 	if (isLocked.value && imageAspectRatio.value) {
 		const newHeight = Math.round(newWidth / imageAspectRatio.value)
-		gridRows.value = Math.max(20, Math.min(100, newHeight))
+		gridRows.value = Math.max(20, Math.min(500, newHeight))
 	}
 	gridColumns.value = newWidth
 	regenerate()
@@ -1259,7 +1263,7 @@ const onGridRowsChange = (e) => {
 	const newHeight = e.detail.value
 	if (isLocked.value && imageAspectRatio.value) {
 		const newWidth = Math.round(newHeight * imageAspectRatio.value)
-		gridColumns.value = Math.max(20, Math.min(100, newWidth))
+		gridColumns.value = Math.max(20, Math.min(500, newWidth))
 	}
 	gridRows.value = newHeight
 	regenerate()
@@ -1477,46 +1481,33 @@ function drawPerlerResult(result, colorPalette, showColorCode = true) {
 	mainCtx.save()
 	mainCtx.scale(scaleRatio, scaleRatio)
 
-	// 计算布局 - 根据钉数动态调整边距（密度越高，边距越小）
-	let margin
-	if (N > 100 || M > 100) {
-		margin = 40 // 超高密度：极窄边距
-	} else if (N > 60 || M > 60) {
-		margin = 80 // 高密度：窄边距
-	} else {
-		margin = 160 // 正常密度：标准边距
-	}
-	const maxImageSize = canvasSize - margin
+	// 固定格子大小为22px（用户要求）
+	const cellSize = 22
+	
+	// 计算图纸原始尺寸
+	const originalWidth = N * cellSize
+	const originalHeight = M * cellSize
+	
+	// 计算缩放比例以适配容器（使用95%的容器大小，最大化利用空间）
+	const maxImageSize = canvasSize * 0.95
+	const scaleX = maxImageSize / originalWidth
+	const scaleY = maxImageSize / originalHeight
+	const zoomScale = Math.min(scaleX, scaleY, 1) // 最大为1（不放大）
+	
+	// 应用整体缩放
+	mainCtx.save()
+	mainCtx.scale(zoomScale, zoomScale)
+	
+	console.log(`📐 图纸适配: N=${N}, M=${M}, cellSize=${cellSize}px, zoomScale=${zoomScale.toFixed(2)}`)
+	
+	// 更新显示的格子大小和缩放级别
+	cellSizeDisplay.value = Math.round(cellSize * zoomScale * 10) / 10
+	zoomLevel.value = zoomScale
 
-	const aspectRatio = N / M
-
-	let targetWidth, targetHeight
-	if (aspectRatio >= 1) {
-		targetWidth = maxImageSize
-		targetHeight = Math.min(maxImageSize / aspectRatio, maxImageSize)
-	} else {
-		targetHeight = maxImageSize
-		targetWidth = Math.min(maxImageSize * aspectRatio, maxImageSize)
-	}
-
-	// 计算 cellSize
-	const scaleX = targetWidth / N
-	const scaleY = targetHeight / M
-	let cellSize = Math.min(scaleX, scaleY)
-
-	// 确保格子大小最小为22px（用户要求）- 优先满足，图纸可能会超出容器
-	const MIN_CELL_SIZE = 22
-	if (cellSize < MIN_CELL_SIZE) {
-		cellSize = MIN_CELL_SIZE
-		console.log(`📏 格子大小限制为最小值: ${MIN_CELL_SIZE}px`)
-	}
-
-	// 更新显示的格子大小
-	cellSizeDisplay.value = Math.round(cellSize * 10) / 10
-
-	// 计算居中位置（在缩放后的坐标系中）
-	const startX = (canvasSize - N * cellSize) / 2
-	const startY = (canvasSize - M * cellSize) / 2
+	// 计算居中位置：在缩放后的坐标系中，图纸尺寸为 N*cellSize x M*cellSize
+	// 需要居中到 canvasSize/zoomScale 的容器中
+	const startX = (canvasSize / zoomScale - N * cellSize) / 2
+	const startY = (canvasSize / zoomScale - M * cellSize) / 2
 
 	// 绘制拼豆
 	for (let y = 0; y < M; y++) {
@@ -1637,8 +1628,15 @@ function drawPerlerResult(result, colorPalette, showColorCode = true) {
 		})
 	}
 
-	// 恢复缩放设置
-	mainCtx.restore()
+	// 恢复图纸缩放和5倍高清缩放
+	mainCtx.restore() // 恢复图纸缩放
+	mainCtx.restore() // 恢复5倍高清缩放
+	
+	// 重置pan值为0（居中），确保图纸居中显示
+	panX.value = 0
+	panY.value = 0
+	
+	console.log(`✅ 图纸绘制完成: panX=${panX.value}, panY=${panY.value}, zoomLevel=${zoomLevel.value}`)
 }
 
 /**
@@ -1971,10 +1969,27 @@ const generateDemoImage = () => {
 	pdCanvas.value = uni.createCanvasContext('pdCanvas')
 
 	const gridSize = selectedSize.value
-	const cellSize = canvasSize / gridSize
+	
+	// 固定格子大小为22px
+	const cellSize = 22
+	
+	// 计算缩放比例以适配窗口
+	const originalContentSize = gridSize * cellSize
+	const maxImageSize = canvasSize * 0.8
+	const zoomScale = Math.min(maxImageSize / originalContentSize, 1)
+	
+	// 更新显示的格子大小和缩放级别
+	cellSizeDisplay.value = Math.round(cellSize * zoomScale * 10) / 10
+	zoomLevel.value = zoomScale
+	
+	console.log(`📐 示例图纸适配: gridSize=${gridSize}, cellSize=${cellSize}px, zoomScale=${zoomScale.toFixed(2)}`)
 
 	pdCanvas.value.setFillStyle('#ffffff')
 	pdCanvas.value.fillRect(0, 0, canvasSize, canvasSize)
+	
+	// 应用整体缩放（不手动平移），让CSS flex自动居中
+	// 从左上角开始绘制
+	pdCanvas.value.scale(zoomScale, zoomScale)
 
 	const colorCountMap = {}
 
@@ -2005,12 +2020,12 @@ const generateDemoImage = () => {
 	}
 
 	pdCanvas.value.setStrokeStyle('#e8e8e8')
-	pdCanvas.value.setLineWidth(0.5)
+	pdCanvas.value.setLineWidth(0.5 / zoomScale) // 考虑缩放，保持线条粗细一致
 	for (let i = 0; i <= gridSize; i++) {
 		pdCanvas.value.moveTo(0, i * cellSize)
-		pdCanvas.value.lineTo(canvasSize, i * cellSize)
+		pdCanvas.value.lineTo(gridSize * cellSize, i * cellSize)
 		pdCanvas.value.moveTo(i * cellSize, 0)
-		pdCanvas.value.lineTo(i * cellSize, canvasSize)
+		pdCanvas.value.lineTo(i * cellSize, gridSize * cellSize)
 	}
 	pdCanvas.value.stroke()
 
@@ -2018,6 +2033,9 @@ const generateDemoImage = () => {
 
 	pdCanvas.value.draw(false, () => {
 		canvasReady.value = true
+		// 重置pan值为0（居中）
+		panX.value = 0
+		panY.value = 0
 	})
 }
 
@@ -2276,10 +2294,12 @@ onMounted(() => {
 			height: 100% !important;
 			margin: -32rpx; // 抵消preview-card的padding，让Canvas占满容器
 			box-sizing: border-box;
+			display: flex;
+			align-items: center;
+			justify-content: center;
 
 			.pd-canvas {
-				width: 100% !important;
-				height: 100% !important;
+				// Canvas的实际尺寸由JavaScript设置，CSS只控制显示尺寸
 				display: block; // 移除图片默认的底部间隙
 			}
 		}
