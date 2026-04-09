@@ -11,7 +11,7 @@
 			:class="{ 'floating': isFloating && !showExportSettingsDialog, 'dragging': isFloatingDragging }"
 			:style="isFloating ? { left: floatX + 'rpx', top: floatY + 'rpx', width: floatWidth + 'rpx', height: floatHeight + 'rpx' } : {}"
 			@touchend="onFloatEnd" @mouseup="onFloatEnd" @mouseleave="onFloatEnd">
-			<!-- 【修改】浮窗头部 -->
+			<!-- 浮窗头部 -->
 			<view class="section-header" @touchstart="onFloatStart" @mousedown="onFloatStart"
 				@touchmove.stop.prevent="onFloatMove" @mousemove.stop.prevent="onFloatMove" @mouseup="onFloatEnd"
 				@mouseleave="onFloatEnd">
@@ -34,29 +34,28 @@
 					</view>
 				</view>
 			</view>
-			<view class="preview-card" :class="{ 'fullscreen': isFullscreen, 'floating-window': isFloating }"
-				:style="floatingWindowStyle">
+			<!-- 浮窗缩放手柄 -->
+			<template v-if="isFloating">
+				<view class="resize-handle resize-handle-nw" @touchstart.prevent="onResizeStart('nw', $event)"
+					@mousedown.prevent="onResizeMouseDown('nw', $event)" @touchmove.prevent="onResizeMove"
+					@mousemove.prevent="onResizeMove"></view>
+				<view class="resize-handle resize-handle-ne" @touchstart.prevent="onResizeStart('ne', $event)"
+					@mousedown.prevent="onResizeMouseDown('ne', $event)" @touchmove.prevent="onResizeMove"
+					@mousemove.prevent="onResizeMove"></view>
+				<view class="resize-handle resize-handle-sw" @touchstart.prevent="onResizeStart('sw', $event)"
+					@mousedown.prevent="onResizeMouseDown('sw', $event)" @touchmove.prevent="onResizeMove"
+					@mousemove.prevent="onResizeMove"></view>
+				<view class="resize-handle resize-handle-se" @touchstart.prevent="onResizeStart('se', $event)"
+					@mousedown.prevent="onResizeMouseDown('se', $event)" @touchmove.prevent="onResizeMove"
+					@mousemove.prevent="onResizeMove"></view>
+			</template>
+
+			<view class="preview-card" :class="{ 'fullscreen': isFullscreen, 'floating-window': isFloating }">
 				<view class="fullscreen-close" v-if="isFullscreen" @click="toggleFullscreen">
 					<text>✕</text>
 				</view>
-
-				<!-- 浮窗缩放手柄 -->
-				<template v-if="isFloating">
-					<view class="resize-handle resize-handle-nw" @touchstart.prevent="onResizeStart('nw', $event)"
-						@mousedown.prevent="onResizeMouseDown('nw', $event)" @touchmove.prevent="onResizeMove"
-						@mousemove.prevent="onResizeMove"></view>
-					<view class="resize-handle resize-handle-ne" @touchstart.prevent="onResizeStart('ne', $event)"
-						@mousedown.prevent="onResizeMouseDown('ne', $event)" @touchmove.prevent="onResizeMove"
-						@mousemove.prevent="onResizeMove"></view>
-					<view class="resize-handle resize-handle-sw" @touchstart.prevent="onResizeStart('sw', $event)"
-						@mousedown.prevent="onResizeMouseDown('sw', $event)" @touchmove.prevent="onResizeMove"
-						@mousemove.prevent="onResizeMove"></view>
-					<view class="resize-handle resize-handle-se" @touchstart.prevent="onResizeStart('se', $event)"
-						@mousedown.prevent="onResizeMouseDown('se', $event)" @touchmove.prevent="onResizeMove"
-						@mousemove.prevent="onResizeMove"></view>
-				</template>
 				<movable-area :scale-area="true" class="canvas-container" :style="canvasContainerStyle">
-					<movable-view :scale="true" direction="all" :scale-value="isFloating ? 0.5 : 1" class="canvas-drag-container"
+					<movable-view :scale="true" direction="all" :scale-value="scaleValue" class="canvas-drag-container"
 						:style="dragContainerStyle" @scale="onScale">
 						<canvas type="2d" id="mainCanvas" class="pd-canvas" :style="canvasStyle" />
 					</movable-view>
@@ -684,6 +683,8 @@ const canvasContainerStyle = computed(() => {
 		return {
 			width: `${floatWidth.value}rpx`,
 			height: `${floatHeight.value}rpx`,
+			transform: `translate(${panX.value}px, ${panY.value}px)`,
+			transition: isDragging.value ? 'none' : 'transform 0.2s ease-out',
 			overflow: 'hidden',
 			touchAction: 'none'
 		}
@@ -716,6 +717,11 @@ const canvasStyle = computed(() => {
 		height: '600rpx',
 		display: 'block'
 	}
+})
+
+// 计算缩放值：浮窗模式下使用fitCanvasToFloatingWindow计算的缩放，其他模式为1
+const scaleValue = computed(() => {
+	return isFloating.value ? zoomLevel.value : 1
 })
 
 // 移除canvasWidth和canvasHeight计算属性，Canvas尺寸在JavaScript中设置
@@ -964,27 +970,28 @@ const toggleFloating = () => {
 	console.log('new isFloating:', isFloating.value)
 	if (isFloating.value) {
 		// 初始化位置和缩放 - 图纸100%完整显示
+		// 高度包含header(约60rpx) + card(340rpx)
 		floatX.value = 50
 		floatY.value = 100
 		floatWidth.value = 400
-		floatHeight.value = 400
+		floatHeight.value = 400 // 总高度：60rpx(header) + 340rpx(card)
 		isFloatingMinimized.value = false
 
-		// 【修改】延迟增加到300ms，确保canvas渲染完成
+		// 延迟增加到300ms，确保canvas渲染完成
 		const fitTimeout = setTimeout(() => {
 			fitCanvasToFloatingWindow() // 新增的适配函数
 			// resetZoom()
 			clearTimeout(fitTimeout)
 		}, 300)
 	} else {
-		// 退出浮窗时重置
+		// 退出浮窗时重置为原始大小
 		zoomLevel.value = 1
 		panX.value = 0
 		panY.value = 0
 	}
 }
 
-// 【新增】微信小程序：图纸自适应浮窗并居中
+// 微信小程序：图纸自适应浮窗并居中
 const fitCanvasToFloatingWindow = async () => {
 	if (!isFloating.value) return
 
@@ -1007,9 +1014,10 @@ const fitCanvasToFloatingWindow = async () => {
 		retryCount++
 	}
 
-	// 浮窗可视区域（rpx）：头部高度60rpx转px计算更准确
+	// 浮窗可视区域（rpx）：头部高度约60rpx，需要减去
+	const headerHeightRpx = 60
 	const floatWinWidthRpx = floatWidth.value
-	const floatWinHeightRpx = floatHeight.value - 60 // 减去头部高度
+	const floatWinHeightRpx = floatHeight.value - headerHeightRpx // 减去头部高度
 	const floatWinWidthPx = floatWinWidthRpx / px2rpx
 	const floatWinHeightPx = floatWinHeightRpx / px2rpx
 
@@ -1656,11 +1664,21 @@ function drawPerlerResult(result, colorPalette, showColorCode = true) {
 	mainCtx.restore() // 恢复图纸缩放
 	mainCtx.restore() // 恢复5倍高清缩放
 
-	// 重置pan值为0（居中），确保图纸居中显示
-	panX.value = 0
-	panY.value = 0
+	// 重置pan值为0（居中），浮窗模式下不重置缩放
+	if (!isFloating.value) {
+		panX.value = 0
+		panY.value = 0
+		zoomLevel.value = 1
+	}
 
 	console.log(`✅ 图纸绘制完成: panX=${panX.value}, panY=${panY.value}, zoomLevel=${zoomLevel.value}`)
+
+	// 如果是浮窗模式，重新适配缩放
+	if (isFloating.value) {
+		setTimeout(() => {
+			fitCanvasToFloatingWindow()
+		}, 100)
+	}
 }
 
 /**
@@ -2057,9 +2075,18 @@ const generateDemoImage = () => {
 
 	pdCanvas.value.draw(false, () => {
 		canvasReady.value = true
-		// 重置pan值为0（居中）
-		panX.value = 0
-		panY.value = 0
+		// 重置pan值为0（居中），浮窗模式下不重置缩放
+		if (!isFloating.value) {
+			panX.value = 0
+			panY.value = 0
+			zoomLevel.value = 1
+		} else {
+			// 浮窗模式下，重新适配缩放
+			const fitTimeout = setTimeout(() => {
+				fitCanvasToFloatingWindow()
+				clearTimeout(fitTimeout)
+			}, 100)
+		}
 	})
 }
 
@@ -2068,13 +2095,6 @@ const regenerate = () => {
 		processImage()
 	} else {
 		generateDemoImage()
-	}
-	// 生成完成后，如果是浮窗状态，重新适配居中
-	if (isFloating.value) {
-		const fitTimeout = setTimeout(() => {
-			fitCanvasToFloatingWindow() // 新增的适配函数
-			clearTimeout(fitTimeout)
-		}, 300)
 	}
 }
 
@@ -2269,20 +2289,64 @@ onMounted(() => {
 .preview-section {
 	margin-bottom: 24rpx;
 	transition: all 0.3s ease;
+	display: flex;
+	flex-direction: column;
 
-	/* 【修改】浮窗样式 */
+	/* 浮窗样式 */
 	&.floating {
 		position: fixed;
+		display: flex;
+		flex-direction: column;
 
-		/* 【新增】覆盖原top */
+		/* 覆盖原top */
 		transform: none !important;
-		/* 【新增】禁用原transform，用JS控制left/top */
+		/* 禁用原transform，用JS控制left/top */
 		z-index: 9999;
 		box-shadow: 0 8rpx 32rpx rgba(0, 0, 0, 0.2);
 		transition: left 0.05s ease-out, top 0.05s ease-out;
-		/* 【修改】调整过渡时间，更流畅 */
+		/* 调整过渡时间，更流畅 */
 		border-radius: 24rpx;
-		overflow: hidden;
+		// overflow: hidden; // 移除overflow，让缩放手柄可以超出边界
+
+		/* 浮窗模式下section-header没有margin-bottom */
+		.section-header {
+			margin-bottom: 0;
+		}
+
+		/* 浮窗缩放手柄 */
+		.resize-handle {
+			position: absolute;
+			width: 60rpx;
+			height: 60rpx;
+			background: transparent;
+			border: none;
+			z-index: 10000;
+			touch-action: none;
+
+			&.resize-handle-nw {
+				top: -30rpx;
+				left: -30rpx;
+				cursor: nw-resize;
+			}
+
+			&.resize-handle-ne {
+				top: -30rpx;
+				right: -30rpx;
+				cursor: ne-resize;
+			}
+
+			&.resize-handle-sw {
+				bottom: -30rpx;
+				left: -30rpx;
+				cursor: sw-resize;
+			}
+
+			&.resize-handle-se {
+				bottom: -30rpx;
+				right: -30rpx;
+				cursor: se-resize;
+			}
+		}
 	}
 
 	/* 【新增】拖拽时禁用过渡动画，避免卡顿 */
@@ -2301,28 +2365,34 @@ onMounted(() => {
 	}
 
 	&.floating-window {
-		position: fixed;
-		top: 100rpx;
-		right: 24rpx;
-		width: 400rpx;
-		height: 400rpx;
-		z-index: 1000;
-		box-shadow: 0 8rpx 32rpx rgba(0, 0, 0, 0.3);
+		flex: 1;
+		width: 100%;
+		height: auto;
+		padding: 0; // 浮窗模式去掉padding，让图纸占满
 		border-radius: 16rpx;
 		overflow: hidden;
 		background: #ffffff;
 		transition: none; // 拖拽时禁用过渡效果
+		box-shadow: 0 8rpx 32rpx rgba(0, 0, 0, 0.3);
 		cursor: move;
-		padding: 0; // 浮窗模式去掉padding，让图纸占满
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		z-index: 99999; // 提高层级，确保在最上面
 
 		.canvas-container {
 			width: 100% !important;
 			height: 100% !important;
-			margin: -32rpx; // 抵消preview-card的padding，让Canvas占满容器
 			box-sizing: border-box;
 			display: flex;
 			align-items: center;
 			justify-content: center;
+
+			.canvas-drag-container {
+				display: flex;
+				align-items: center;
+				justify-content: center;
+			}
 
 			.pd-canvas {
 				// Canvas的实际尺寸由JavaScript设置，CSS只控制显示尺寸
@@ -2358,15 +2428,12 @@ onMounted(() => {
 		cursor: move;
 		user-select: none;
 		-webkit-user-select: none;
-		position: absolute;
-		top: 0;
-		left: 0;
-		right: 0;
 		background: rgba(26, 26, 46, 0.9);
 		color: white;
 		z-index: 11;
 		padding: 12rpx 16rpx;
 		border-radius: 16rpx;
+		flex-shrink: 0;
 
 		.section-title,
 		.section-subtitle {
@@ -2432,8 +2499,16 @@ onMounted(() => {
 		position: relative;
 		display: flex;
 		justify-content: center;
+		align-items: center;
 		z-index: 1;
 		box-sizing: border-box;
+
+		/* 确保canvas-drag-container居中 */
+		.canvas-drag-container {
+			display: flex;
+			align-items: center;
+			justify-content: center;
+		}
 
 		&.fullscreen {
 			position: fixed;
@@ -2980,53 +3055,6 @@ onMounted(() => {
 		width: 48rpx;
 		height: 48rpx;
 		filter: brightness(0) invert(1);
-	}
-}
-
-/* 【修改】浮窗缩放手柄 */
-.resize-handle {
-	position: absolute;
-	width: 60rpx;
-	/* 【修改】从32rpx扩大到60rpx */
-	height: 60rpx;
-	/* 【修改】从32rpx扩大到60rpx */
-	background: transparent;
-	/* 【修改】透明不挡视线 */
-	border: none;
-	/* 【修改】去掉原有的边框 */
-	z-index: 10000;
-	touch-action: none;
-
-	&.resize-handle-nw {
-		top: -30rpx;
-		/* 【修改】从-12rpx调整到-30rpx */
-		left: -30rpx;
-		/* 【修改】从-12rpx调整到-30rpx */
-		cursor: nw-resize;
-	}
-
-	&.resize-handle-ne {
-		top: -30rpx;
-		/* 【修改】从-12rpx调整到-30rpx */
-		right: -30rpx;
-		/* 【修改】从-12rpx调整到-30rpx */
-		cursor: ne-resize;
-	}
-
-	&.resize-handle-sw {
-		bottom: -30rpx;
-		/* 【修改】从-12rpx调整到-30rpx */
-		left: -30rpx;
-		/* 【修改】从-12rpx调整到-30rpx */
-		cursor: sw-resize;
-	}
-
-	&.resize-handle-se {
-		bottom: -30rpx;
-		/* 【修改】从-12rpx调整到-30rpx */
-		right: -30rpx;
-		/* 【修改】从-12rpx调整到-30rpx */
-		cursor: se-resize;
 	}
 }
 
