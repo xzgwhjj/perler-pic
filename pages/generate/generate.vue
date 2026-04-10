@@ -55,8 +55,8 @@
 					<text>✕</text>
 				</view>
 				<movable-area :scale-area="true" class="canvas-container" :style="canvasContainerStyle">
-					<movable-view :scale="true" direction="all" :x="panX" :y="panY" :scale-value="scaleValue" class="canvas-drag-container"
-						:style="dragContainerStyle" @scale="onScale">
+					<movable-view :scale="true" direction="all" :x="panX" :y="panY" :scale-value="scaleValue"
+						class="canvas-drag-container" :style="dragContainerStyle" @scale="onScale">
 						<canvas type="2d" id="mainCanvas" class="pd-canvas" :style="canvasStyle" />
 					</movable-view>
 				</movable-area>
@@ -402,7 +402,7 @@ import {
 const CANVAS_DISPLAY_SIZE = 3000
 let canvasSize = 600 // 容器显示尺寸为600rpx
 
-// 计算属性：动态 Canvas 绘制尺寸（根据浮窗大小）
+// 计算属性：动态 Canvas 绘制尺寸（根据显示区域大小）
 const computedCanvasDisplaySize = computed(() => {
 	if (isFloating.value) {
 		// 浮窗模式下，根据可用区域计算（5倍放大绘制）
@@ -411,6 +411,11 @@ const computedCanvasDisplaySize = computed(() => {
 		const sizeRpx = Math.min(floatWidth.value, availableHeightRpx)
 		// 5倍放大绘制
 		return sizeRpx * 5 * (1 / px2rpx) // 转换为像素
+	}
+	if (isFullscreen.value) {
+		// 全屏模式下，使用固定正方形尺寸（5倍放大绘制）
+		// 600rpx * 5 = 3000px
+		return CANVAS_DISPLAY_SIZE
 	}
 	// 默认模式
 	return CANVAS_DISPLAY_SIZE
@@ -679,11 +684,18 @@ const boardSizeIndex = computed(() => {
 // 全屏和缩放相关的计算属性
 const canvasContainerStyle = computed(() => {
 	if (isFullscreen.value) {
+		// 全屏模式下，movable-area 占据除控制按钮外的所有空间
+		// 控制按钮高度约 80rpx，加上 margin 16rpx，总共约 96rpx
+		const controlsHeight = 96
 		return {
-			width: '600rpx',
-			height: '600rpx',
-			overflow: 'auto',
-			maxHeight: '100vh'
+			width: '100%',
+			height: `calc(100% - ${controlsHeight}rpx)`,
+			overflow: 'hidden',
+			touchAction: 'none',
+			// 移除正方形限制，让 movable-area 占据全屏可用区域
+			maxWidth: 'none',
+			maxHeight: 'none',
+			aspectRatio: 'auto'
 		}
 	}
 	if (isFloating.value) {
@@ -847,7 +859,7 @@ const toggleFullscreen = () => {
 		setTimeout(() => {
 			isFullscreen.value = !isFullscreen.value
 			if (isFullscreen.value) {
-				zoomLevel.value = 1
+				centerMovableViewInFullscreen()
 			}
 		}, 100)
 		return
@@ -855,7 +867,12 @@ const toggleFullscreen = () => {
 
 	isFullscreen.value = !isFullscreen.value
 	if (isFullscreen.value) {
-		// 进入全屏时重置缩放
+		// 进入全屏时居中显示
+		centerMovableViewInFullscreen()
+	} else {
+		// 退出全屏时重置位置
+		panX.value = 0
+		panY.value = 0
 		zoomLevel.value = 1
 	}
 }
@@ -1101,6 +1118,77 @@ const fitCanvasToFloatingWindow = async () => {
 			console.log(`📍 movable-view 位置: x=${panX.value}px, y=${panY.value}px (相对于 movable-area 左上角)`)
 			console.log(`📐 movable-area 尺寸: ${floatWinWidthRpx}×${floatWinHeightRpx}rpx (${floatWinWidthPx.toFixed(2)}×${floatWinHeightPx.toFixed(2)}px)`)
 			console.log(`🎯 Canvas 缩放后尺寸: ${(canvasWidthPx * fitScale).toFixed(2)}×${(canvasHeightPx * fitScale).toFixed(2)}px`)
+		})
+}
+
+// 通用函数：让movable-view居中在movable-area中（全屏模式）
+const centerMovableViewInFullscreen = async () => {
+	console.log('🎯 开始全屏模式居中计算...')
+
+	if (!isFullscreen.value) return
+
+	// 等待canvas渲染完成
+	await new Promise(resolve => setTimeout(resolve, 150))
+
+	const query = uni.createSelectorQuery().in(getCurrentPages()[getCurrentPages().length - 1])
+
+	// 获取movable-area的尺寸
+	query.select('.canvas-container')
+		.fields({ size: true })
+		.exec((areaRes) => {
+			if (!areaRes || !areaRes[0]) {
+				console.error('❌ 无法获取 movable-area 尺寸')
+				return
+			}
+
+			const areaWidth = areaRes[0].width
+			const areaHeight = areaRes[0].height
+			const floatWinWidthRpx = areaWidth
+			const floatWinHeightRpx = areaHeight
+			const floatWinWidthPx = floatWinWidthRpx / px2rpx
+			const floatWinHeightPx = floatWinHeightRpx / px2rpx
+
+			console.log(`📐 movable-area 可用区域: ${areaWidth.toFixed(2)}×${areaHeight.toFixed(2)}px`)
+			console.log(`📊 全屏模式: 不包含底部控制按钮区域`)
+
+			// 获取canvas的尺寸（应该是正方形）
+			// 获取Canvas实际尺寸
+			const query = uni.createSelectorQuery().in(getCurrentPages()[getCurrentPages().length - 1])
+			query.select('#mainCanvas')
+				.fields({ node: true, size: true })
+				.exec((res) => {
+					if (!res || !res[0]) {
+						console.error('❌ 无法获取Canvas尺寸')
+						return
+					}
+
+					const canvasWidthPx = res[0].width
+					const canvasHeightPx = res[0].height
+
+					console.log(`🎨 Canvas实际尺寸: ${canvasWidthPx}×${canvasHeightPx}px`)
+
+					// 计算等比缩放比例（以px为单位计算，避免rpx转换误差）
+					const scaleX = floatWinWidthPx / canvasWidthPx
+					const scaleY = floatWinHeightPx / canvasHeightPx
+					const fitScale = Math.min(scaleX, scaleY, 1) // 最大缩放1倍
+
+					console.log(`🔢 缩放比例: scaleX=${scaleX.toFixed(3)}, scaleY=${scaleY.toFixed(3)}, fitScale=${fitScale.toFixed(3)}`)
+
+					// 计算居中偏移（px）
+					const offsetX = (floatWinWidthRpx - canvasWidthPx) / 2
+					const offsetY = (floatWinHeightRpx - canvasHeightPx) / 2
+
+					console.log(`📍 居中偏移: offsetX=${offsetX.toFixed(2)}px, offsetY=${offsetY.toFixed(2)}px`)
+
+					// 设置缩放和居中
+					// zoomLevel.value = fitScale
+					panX.value = offsetX
+					panY.value = offsetY
+					console.log(`✅ 浮窗适配完成: zoomLevel=${zoomLevel.value}, panX=${panX.value}, panY=${panY.value}`)
+					console.log(`📍 movable-view 位置: x=${panX.value}px, y=${panY.value}px (相对于 movable-area 左上角)`)
+					console.log(`📐 movable-area 尺寸: ${floatWinWidthRpx}×${floatWinHeightRpx}rpx (${floatWinWidthPx.toFixed(2)}×${floatWinHeightPx.toFixed(2)}px)`)
+					console.log(`🎯 Canvas 缩放后尺寸: ${(canvasWidthPx * fitScale).toFixed(2)}×${(canvasHeightPx * fitScale).toFixed(2)}px`)
+				})
 		})
 }
 
@@ -1562,9 +1650,18 @@ const processImage = async () => {
 function drawPerlerResult(result, colorPalette, showColorCode = true) {
 	const displaySize = computedCanvasDisplaySize.value
 	console.log('🎨 drawPerlerResult - Canvas绘制尺寸:', displaySize, 'px')
+	console.log(`📊 当前模式 - isFloating: ${isFloating.value}, isFullscreen: ${isFullscreen.value}`)
+	console.log(`📊 computedCanvasDisplaySize 计算值: ${displaySize}px`)
 
 	const { mappedData, colorCounts, totalBeads, gridSize } = result
 	const { N, M } = gridSize
+
+	// 确保Canvas为正方形
+	if (mainCanvas) {
+		console.log(`📐 设置Canvas宽高 - width: ${displaySize}, height: ${displaySize}`)
+		mainCanvas.width = displaySize
+		mainCanvas.height = displaySize
+	}
 
 	// 清空画布
 	mainCtx.clearRect(0, 0, displaySize, displaySize)
@@ -1726,7 +1823,7 @@ function drawPerlerResult(result, colorPalette, showColorCode = true) {
 	mainCtx.restore() // 恢复5倍高清缩放
 
 	// 重置pan值为0（居中），浮窗模式下不重置缩放
-	if (!isFloating.value) {
+	if (!isFloating.value && !isFullscreen.value) {
 		panX.value = 0
 		panY.value = 0
 		zoomLevel.value = 1
@@ -1738,6 +1835,13 @@ function drawPerlerResult(result, colorPalette, showColorCode = true) {
 	if (isFloating.value) {
 		setTimeout(() => {
 			fitCanvasToFloatingWindow()
+		}, 100)
+	}
+
+	// 如果是全屏模式，居中显示
+	if (isFullscreen.value) {
+		setTimeout(() => {
+			centerMovableViewInFullscreen()
 		}, 100)
 	}
 }
@@ -2472,8 +2576,7 @@ onMounted(() => {
 
 
 		.canvas-container {
-			width: 100% !important;
-			height: 100% !important;
+			// 移除 !important，让内联样式生效
 			box-sizing: border-box;
 			display: flex;
 			align-items: center;
@@ -2614,6 +2717,7 @@ onMounted(() => {
 			display: flex;
 			flex-direction: column;
 			padding: 24rpx;
+			box-sizing: border-box;
 
 			.fullscreen-close {
 				position: absolute;
@@ -2638,7 +2742,7 @@ onMounted(() => {
 			}
 
 			.canvas-container {
-				flex: 1;
+				flex: 1; // 占据剩余空间（除了底部控制按钮）
 				display: flex;
 				align-items: center;
 				justify-content: center;
@@ -2648,6 +2752,12 @@ onMounted(() => {
 				margin-bottom: 16rpx;
 				min-height: 0;
 				position: relative;
+				// 全屏模式下，移除正方形限制，让 movable-area 占据全屏可用区域
+				// 只在非全屏模式下保持正方形
+				max-width: 600rpx;
+				max-height: 600rpx;
+				aspect-ratio: 1;
+				align-self: center; // 在 flex 容器中居中
 
 				.canvas-drag-container {
 					display: flex;
