@@ -107,11 +107,11 @@
 								</view>
 							</view>
 							<view class="slider-input-container">
-								<slider :value="gridColumns" min="5" max="500" @change="onGridColumnsChange"
+								<slider :value="gridColumns" min="5" max="300" @change="onGridColumnsChange"
 									activeColor="#1a1a2e" backgroundColor="#e8e8e8" block-size="20" />
 								<view class="size-input-container">
 									<input class="size-input" type="number" v-model="gridColumns"
-										@blur="onGridColumnsInput" @confirm="onGridColumnsInput" min="5" max="500" />
+										@blur="onGridColumnsInput" @confirm="onGridColumnsInput" min="5" max="300" />
 								</view>
 							</view>
 						</view>
@@ -127,11 +127,11 @@
 								</view>
 							</view>
 							<view class="slider-input-container">
-								<slider :value="gridRows" min="5" max="500" @change="onGridRowsChange"
+								<slider :value="gridRows" min="5" max="300" @change="onGridRowsChange"
 									activeColor="#1a1a2e" backgroundColor="#e8e8e8" block-size="20" />
 								<view class="size-input-container">
 									<input class="size-input" type="number" v-model="gridRows" @blur="onGridRowsInput"
-										@confirm="onGridRowsInput" min="5" max="500" />
+										@confirm="onGridRowsInput" min="5" max="300" />
 								</view>
 							</view>
 						</view>
@@ -398,23 +398,23 @@ import {
 	ref
 } from 'vue'
 
-// Canvas显示尺寸（绘制像素）- 5倍放大绘制：3000px绘制，600rpx显示
-const CANVAS_DISPLAY_SIZE = 3000
+// Canvas显示尺寸（绘制像素）- 10倍放大绘制：6000px绘制，600rpx显示
+const CANVAS_DISPLAY_SIZE = 6000
 let canvasSize = 600 // 容器显示尺寸为600rpx
 
 // 计算属性：动态 Canvas 绘制尺寸（根据显示区域大小）
 const computedCanvasDisplaySize = computed(() => {
 	if (isFloating.value) {
-		// 浮窗模式下，根据可用区域计算（5倍放大绘制）
+		// 浮窗模式下，根据可用区域计算（10倍放大绘制）
 		const headerHeightRpx = 60
 		const availableHeightRpx = floatHeight.value - headerHeightRpx
 		const sizeRpx = Math.min(floatWidth.value, availableHeightRpx)
-		// 5倍放大绘制
-		return sizeRpx * 5 * (1 / px2rpx) // 转换为像素
+		// 10倍放大绘制
+		return sizeRpx * 10 * (1 / px2rpx) // 转换为像素
 	}
 	if (isFullscreen.value) {
-		// 全屏模式下，使用固定正方形尺寸（5倍放大绘制）
-		// 600rpx * 5 = 3000px
+		// 全屏模式下，使用固定正方形尺寸（10倍放大绘制）
+		// 600rpx * 10 = 6000px
 		return CANVAS_DISPLAY_SIZE
 	}
 	// 默认模式
@@ -1422,17 +1422,17 @@ const onGridColumnsChange = (e) => {
 	const newWidth = e.detail.value
 	if (isLocked.value && imageAspectRatio.value) {
 		const newHeight = Math.round(newWidth / imageAspectRatio.value)
-		gridRows.value = Math.max(20, Math.min(500, newHeight))
+		gridRows.value = Math.max(20, Math.min(300, newHeight))
 	}
 	gridColumns.value = newWidth
 	regenerate()
 }
 
 const onGridColumnsInput = () => {
-	gridColumns.value = Math.max(20, Math.min(100, parseInt(gridColumns.value) || 50))
+	gridColumns.value = Math.max(20, Math.min(300, parseInt(gridColumns.value) || 50))
 	if (isLocked.value && imageAspectRatio.value) {
 		const newHeight = Math.round(gridColumns.value / imageAspectRatio.value)
-		gridRows.value = Math.max(20, Math.min(100, newHeight))
+		gridRows.value = Math.max(20, Math.min(300, newHeight))
 	}
 	regenerate()
 }
@@ -1441,17 +1441,17 @@ const onGridRowsChange = (e) => {
 	const newHeight = e.detail.value
 	if (isLocked.value && imageAspectRatio.value) {
 		const newWidth = Math.round(newHeight * imageAspectRatio.value)
-		gridColumns.value = Math.max(20, Math.min(500, newWidth))
+		gridColumns.value = Math.max(20, Math.min(300, newWidth))
 	}
 	gridRows.value = newHeight
 	regenerate()
 }
 
 const onGridRowsInput = () => {
-	gridRows.value = Math.max(20, Math.min(100, parseInt(gridRows.value) || 50))
+	gridRows.value = Math.max(20, Math.min(300, parseInt(gridRows.value) || 50))
 	if (isLocked.value && imageAspectRatio.value) {
 		const newWidth = Math.round(gridRows.value * imageAspectRatio.value)
-		gridColumns.value = Math.max(20, Math.min(100, newWidth))
+		gridColumns.value = Math.max(20, Math.min(300, newWidth))
 	}
 	regenerate()
 }
@@ -1671,18 +1671,50 @@ function drawPerlerResult(result, colorPalette, showColorCode = true) {
 	mainCtx.save()
 	mainCtx.scale(scaleRatio, scaleRatio)
 
-	// 固定格子大小为22px（用户要求）
-	const cellSize = 22
-
+	// 自适应缩放：保证放大后每个格子至少22px
+	const MIN_CELL_SIZE = 22 // 格子固定22px
+	const MAX_ZOOM = 10 // 最大放大倍数
+	const MIN_SCREEN_CELL_SIZE = 22 // 放大后每个格子至少22px才清晰
+	const cellSize = MIN_CELL_SIZE
+	
+	// 10倍放大绘制：displaySize=6000px, canvasSize=600rpx
+	// maxImageSize 是容器内可用的最大尺寸（rpx）
+	const maxImageSize = canvasSize * 0.95
+	const maxDimension = Math.max(N, M)
+	
+	// 计算：格子固定22px时，放大10倍后能否达到22px屏幕尺寸
+	// 公式推导：
+	// - 格子在容器中显示尺寸 = cellSize × zoomScale (rpx)
+	// - 放大10倍后 = cellSize × zoomScale × 10 ≥ 22
+	// - 而 zoomScale = maxImageSize / (maxDimension × cellSize)
+	// - 代入化简：maxImageSize × 10 / maxDimension ≥ 22
+	// - 即：maxDimension ≤ maxImageSize × 10 / 22
+	
+	const maxDimensionForFullClarity = Math.round(maxImageSize * MAX_ZOOM / MIN_SCREEN_CELL_SIZE)
+	
 	// 计算图纸原始尺寸
 	const originalWidth = N * cellSize
 	const originalHeight = M * cellSize
-
-	// 计算缩放比例以适配容器（使用95%的容器大小，最大化利用空间）
-	const maxImageSize = canvasSize * 0.95
+	
+	// 计算缩放比例以适配容器
 	const scaleX = maxImageSize / originalWidth
 	const scaleY = maxImageSize / originalHeight
 	const zoomScale = Math.min(scaleX, scaleY, 1) // 最大为1（不放大）
+	
+	// 计算放大10倍后的格子屏幕尺寸
+	const screenCellSizeAtMaxZoom = cellSize * zoomScale * MAX_ZOOM
+	const screenCellSizeAtCurrent = cellSize * zoomScale
+	
+	console.log(`📐 10倍放大绘制: displaySize=6000px, canvasSize=${canvasSize}rpx`)
+	console.log(`   钉数: ${N}×${M} = ${N * M} 钉`)
+	console.log(`   格子大小: ${cellSize}px (固定)`)
+	console.log(`   初始缩放: zoomScale=${zoomScale.toFixed(2)}`)
+	console.log(`   当前格子屏幕尺寸: ${screenCellSizeAtCurrent.toFixed(1)}rpx`)
+	console.log(`   放大${MAX_ZOOM}倍后格子尺寸: ${screenCellSizeAtMaxZoom.toFixed(1)}rpx ${screenCellSizeAtMaxZoom >= MIN_SCREEN_CELL_SIZE ? '✅ 清晰' : '⚠️ 较小'}`)
+	
+	if (maxDimension > maxDimensionForFullClarity) {
+		console.log(`   📢 钉数较多(${maxDimension}>${maxDimensionForFullClarity})，放大后格子较小`)
+	}
 
 	// 应用整体缩放
 	mainCtx.save()
