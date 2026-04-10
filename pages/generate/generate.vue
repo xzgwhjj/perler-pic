@@ -9,8 +9,8 @@
 		<!-- 【修改】图纸预览浮窗部分 -->
 		<view class="preview-section"
 			:class="{ 'floating': isFloating && !showExportSettingsDialog, 'dragging': isFloatingDragging }"
-			:style="isFloating ? { left: floatX + 'rpx', top: floatY + 'rpx', width: floatWidth + 'rpx', height: floatHeight + 'rpx' } : {}"
-			@touchend="onFloatEnd" @mouseup="onFloatEnd" @mouseleave="onFloatEnd">
+			:style="isFloating ? { left: floatX + 'rpx', top: floatY + 'rpx' } : {}" @touchend="onFloatEnd"
+			@mouseup="onFloatEnd" @mouseleave="onFloatEnd">
 			<!-- 浮窗头部 -->
 			<view class="section-header" @touchstart="onFloatStart" @mousedown="onFloatStart"
 				@touchmove.stop.prevent="onFloatMove" @mousemove.stop.prevent="onFloatMove" @mouseup="onFloatEnd"
@@ -55,19 +55,11 @@
 					<text>✕</text>
 				</view>
 				<movable-area :scale-area="true" class="canvas-container" :style="canvasContainerStyle">
-					<movable-view :scale="true" direction="all" :scale-value="scaleValue" class="canvas-drag-container"
+					<movable-view :scale="true" direction="all" :x="panX" :y="panY" :scale-value="scaleValue" class="canvas-drag-container"
 						:style="dragContainerStyle" @scale="onScale">
 						<canvas type="2d" id="mainCanvas" class="pd-canvas" :style="canvasStyle" />
 					</movable-view>
 				</movable-area>
-				<!-- <view class="canvas-container" :style="canvasContainerStyle">
-					<view class="canvas-drag-container" :style="dragContainerStyle" @touchstart="onDragStart"
-						@touchmove="onDragMove" @touchend="onDragEnd" @mousedown="onMouseDragStart"
-						@mousemove="onMouseDragMove" @mouseup="onMouseDragEnd" @mouseleave="onMouseDragEnd"
-						@wheel="onWheel">
-						<canvas type="2d" id="mainCanvas" class="pd-canvas" :style="canvasStyle" />
-					</view>
-				</view> -->
 				<view class="zoom-controls" v-if="isFullscreen">
 					<view class="zoom-btn" @click="zoomOut">
 						<text>−</text>
@@ -410,6 +402,20 @@ import {
 const CANVAS_DISPLAY_SIZE = 3000
 let canvasSize = 600 // 容器显示尺寸为600rpx
 
+// 计算属性：动态 Canvas 绘制尺寸（根据浮窗大小）
+const computedCanvasDisplaySize = computed(() => {
+	if (isFloating.value) {
+		// 浮窗模式下，根据可用区域计算（5倍放大绘制）
+		const headerHeightRpx = 60
+		const availableHeightRpx = floatHeight.value - headerHeightRpx
+		const sizeRpx = Math.min(floatWidth.value, availableHeightRpx)
+		// 5倍放大绘制
+		return sizeRpx * 5 * (1 / px2rpx) // 转换为像素
+	}
+	// 默认模式
+	return CANVAS_DISPLAY_SIZE
+})
+
 // 获取设备像素比（适配高清屏）
 const getPixelRatio = (ctx) => {
 	// #ifdef MP-WEIXIN
@@ -584,11 +590,10 @@ const onResizeMove = (e) => {
 	lastResizeY.value = currentYRpx
 }
 
-// 缩放
+// 缩放事件
 const onScale = (event) => {
-	console.log("当前:", event)
 	const scale = event.detail.scale
-	console.log("当前缩放比例:", scale)
+	console.log("缩放比例:", scale)
 }
 
 // 颜色聚类：存储图片主色（低精度合并杂色用）
@@ -675,16 +680,19 @@ const boardSizeIndex = computed(() => {
 const canvasContainerStyle = computed(() => {
 	if (isFullscreen.value) {
 		return {
+			width: '600rpx',
+			height: '600rpx',
 			overflow: 'auto',
 			maxHeight: '100vh'
 		}
 	}
 	if (isFloating.value) {
+		// 浮窗模式下，高度需要减去header高度（约60rpx）
+		const headerHeight = 60
+		const availableHeight = floatHeight.value - headerHeight
 		return {
 			width: `${floatWidth.value}rpx`,
-			height: `${floatHeight.value}rpx`,
-			transform: `translate(${panX.value}px, ${panY.value}px)`,
-			transition: isDragging.value ? 'none' : 'transform 0.2s ease-out',
+			height: `${availableHeight}rpx`, // 使用可用高度（减去header）
 			overflow: 'hidden',
 			touchAction: 'none'
 		}
@@ -698,20 +706,22 @@ const canvasContainerStyle = computed(() => {
 })
 
 const dragContainerStyle = computed(() => {
-	console.log("当前宽度:", floatWidth.value)
-	console.log("当前高度:", floatHeight.value)
-	console.log("当前X:", panX.value)
-	console.log("当前Y:", panY.value)
 	return {
-		width: isFullscreen.value ? `${floatWidth.value}rpx` : '600rpx',
-		height: isFullscreen.value ? `${floatHeight.value}rpx` : '600rpx',
-		transform: `translate(${panX.value}px, ${panY.value}px)`,
+		width: '600rpx',
+		height: '600rpx',
 		transition: isDragging.value ? 'none' : 'transform 0.2s ease-out'
 	}
 })
 
-// 不使用CSS transform缩放，只用panX/panY做拖拽
+// Canvas 样式：浮窗模式下使用实际像素尺寸，其他模式使用固定尺寸
 const canvasStyle = computed(() => {
+	if (isFloating.value) {
+		// 浮窗模式下，Canvas 尺寸由 JavaScript 设置，CSS 只控制显示
+		return {
+			display: 'block'
+			// 宽高由 Canvas 上下文设置决定
+		}
+	}
 	return {
 		width: '600rpx',
 		height: '600rpx',
@@ -977,17 +987,31 @@ const toggleFloating = () => {
 		floatHeight.value = 400 // 总高度：60rpx(header) + 340rpx(card)
 		isFloatingMinimized.value = false
 
-		// 延迟增加到300ms，确保canvas渲染完成
-		const fitTimeout = setTimeout(() => {
-			fitCanvasToFloatingWindow() // 新增的适配函数
-			// resetZoom()
-			clearTimeout(fitTimeout)
-		}, 300)
+		console.log(`🚀 进入浮窗模式，初始尺寸: ${floatWidth.value}×${floatHeight.value}rpx`)
+		console.log(`📊 movable-view 初始位置: x=${panX.value}, y=${panY.value}`)
+
+		// 延迟增加到500ms，确保canvas渲染完成
+		// 同时增加重试机制
+		let retryCount = 0
+		const tryCenter = () => {
+			if (canvasReady.value || retryCount >= 3) {
+				console.log(`🎯 第 ${retryCount + 1} 次尝试居中...`)
+				fitCanvasToFloatingWindow()
+			} else {
+				retryCount++
+				console.log(`⏳ Canvas未就绪，${retryCount}秒后重试...`)
+				setTimeout(tryCenter, 500)
+			}
+		}
+
+		setTimeout(tryCenter, 500)
 	} else {
 		// 退出浮窗时重置为原始大小
+		console.log(`🚪 退出浮窗模式，重置位置`)
 		zoomLevel.value = 1
 		panX.value = 0
 		panY.value = 0
+		console.log(`📊 movable-view 重置后位置: x=${panX.value}, y=${panY.value}`)
 	}
 }
 
@@ -995,54 +1019,88 @@ const toggleFloating = () => {
 const fitCanvasToFloatingWindow = async () => {
 	if (!isFloating.value) return
 
-	// 等待canvas渲染完成（最多等500ms）
+	console.log('🔍 fitCanvasToFloatingWindow: 开始适配浮窗...')
+
+	// 等待canvas渲染完成（最多等1000ms）
 	let canvasReady = false
 	let retryCount = 0
-	while (!canvasReady && retryCount < 5) {
+	const maxRetries = 10 // 增加重试次数
+
+	while (!canvasReady && retryCount < maxRetries) {
 		await new Promise(resolve => setTimeout(resolve, 100))
-		const query = uni.createSelectorQuery().in(getCurrentPages()[getCurrentPages().length - 1])
-		await new Promise(resolve => {
-			query.select('#mainCanvas')
-				.fields({ node: true, size: true })
-				.exec((res) => {
-					if (res[0] && res[0].width > 0 && res[0].height > 0) {
-						canvasReady = true
-					}
-					resolve()
-				})
-		})
+
+		try {
+			const query = uni.createSelectorQuery().in(getCurrentPages()[getCurrentPages().length - 1])
+			await new Promise(resolve => {
+				query.select('#mainCanvas')
+					.fields({ node: true, size: true })
+					.exec((res) => {
+						if (res && res[0] && res[0].width > 0 && res[0].height > 0) {
+							canvasReady = true
+							console.log(`✅ Canvas已准备: ${res[0].width}×${res[0].height}px`)
+						} else {
+							console.log(`⏳ 等待Canvas... 重试 ${retryCount + 1}/${maxRetries}`)
+						}
+						resolve()
+					})
+			})
+		} catch (error) {
+			console.error('Canvas查询失败:', error)
+		}
+
 		retryCount++
 	}
 
-	// 浮窗可视区域（rpx）：头部高度约60rpx，需要减去
-	const headerHeightRpx = 60
+	if (!canvasReady) {
+		console.warn('❌ Canvas准备超时，跳过居中适配')
+		return
+	}
+
+	// 浮窗可视区域（rpx）：与 canvasContainerStyle 保持一致
+	// 高度已经在 canvasContainerStyle 中减去header，这里直接使用
 	const floatWinWidthRpx = floatWidth.value
-	const floatWinHeightRpx = floatHeight.value - headerHeightRpx // 减去头部高度
+	const floatWinHeightRpx = floatHeight.value - 60 // 减去头部高度（与canvasContainerStyle保持一致）
 	const floatWinWidthPx = floatWinWidthRpx / px2rpx
 	const floatWinHeightPx = floatWinHeightRpx / px2rpx
+
+	console.log(`📐 浮窗可用区域: ${floatWinWidthRpx}×${floatWinHeightRpx}rpx (${floatWinWidthPx.toFixed(2)}×${floatWinHeightPx.toFixed(2)}px)`)
 
 	// 获取Canvas实际尺寸
 	const query = uni.createSelectorQuery().in(getCurrentPages()[getCurrentPages().length - 1])
 	query.select('#mainCanvas')
 		.fields({ node: true, size: true })
 		.exec((res) => {
-			if (!res[0]) return
+			if (!res || !res[0]) {
+				console.error('❌ 无法获取Canvas尺寸')
+				return
+			}
+
 			const canvasWidthPx = res[0].width
 			const canvasHeightPx = res[0].height
+
+			console.log(`🎨 Canvas实际尺寸: ${canvasWidthPx}×${canvasHeightPx}px`)
 
 			// 计算等比缩放比例（以px为单位计算，避免rpx转换误差）
 			const scaleX = floatWinWidthPx / canvasWidthPx
 			const scaleY = floatWinHeightPx / canvasHeightPx
 			const fitScale = Math.min(scaleX, scaleY, 1) // 最大缩放1倍
 
+			console.log(`🔢 缩放比例: scaleX=${scaleX.toFixed(3)}, scaleY=${scaleY.toFixed(3)}, fitScale=${fitScale.toFixed(3)}`)
+
 			// 计算居中偏移（px）
 			const offsetX = (floatWinWidthPx - canvasWidthPx * fitScale) / 2
 			const offsetY = (floatWinHeightPx - canvasHeightPx * fitScale) / 2
+
+			console.log(`📍 居中偏移: offsetX=${offsetX.toFixed(2)}px, offsetY=${offsetY.toFixed(2)}px`)
 
 			// 设置缩放和居中
 			zoomLevel.value = fitScale
 			panX.value = offsetX
 			panY.value = offsetY
+			console.log(`✅ 浮窗适配完成: zoomLevel=${zoomLevel.value}, panX=${panX.value}, panY=${panY.value}`)
+			console.log(`📍 movable-view 位置: x=${panX.value}px, y=${panY.value}px (相对于 movable-area 左上角)`)
+			console.log(`📐 movable-area 尺寸: ${floatWinWidthRpx}×${floatWinHeightRpx}rpx (${floatWinWidthPx.toFixed(2)}×${floatWinHeightPx.toFixed(2)}px)`)
+			console.log(`🎯 Canvas 缩放后尺寸: ${(canvasWidthPx * fitScale).toFixed(2)}×${(canvasHeightPx * fitScale).toFixed(2)}px`)
 		})
 }
 
@@ -1429,9 +1487,10 @@ const processImage = async () => {
 			src: imagePath.value
 		})
 		const { width, height } = imgInfo
-		const displaySize = CANVAS_DISPLAY_SIZE
+		const displaySize = computedCanvasDisplaySize.value
 
 		console.log('原图尺寸:', width, 'x', height)
+		console.log('Canvas绘制尺寸:', displaySize, 'px (动态计算)')
 
 		// 3. 计算网格尺寸
 		const N = gridColumns.value // 横向网格数量
@@ -1501,7 +1560,9 @@ const processImage = async () => {
  * 绘制 Perler-Beads 风格结果
  */
 function drawPerlerResult(result, colorPalette, showColorCode = true) {
-	const displaySize = CANVAS_DISPLAY_SIZE
+	const displaySize = computedCanvasDisplaySize.value
+	console.log('🎨 drawPerlerResult - Canvas绘制尺寸:', displaySize, 'px')
+
 	const { mappedData, colorCounts, totalBeads, gridSize } = result
 	const { N, M } = gridSize
 
@@ -1955,8 +2016,8 @@ function findClosestMainColor(targetRgb) {
 	}
 }
 
-const generateDemoImage = () => {
-	console.log('生成示例图纸')
+const generateDemoImage = async () => {
+	console.log('🎨 生成示例图纸')
 
 	const colorPalette = [{
 		name: '浅米色',
@@ -2008,30 +2069,51 @@ const generateDemoImage = () => {
 	}
 	]
 
-	pdCanvas.value = uni.createCanvasContext('pdCanvas')
+	// 使用 2D Canvas API（与 processImage 保持一致）
+	const canvasRes = await getCanvasInstance('mainCanvas')
+	if (!canvasRes || !canvasRes.canvas || !canvasRes.ctx) {
+		console.error('❌ Canvas初始化失败:', canvasRes)
+		return
+	}
+
+	mainCanvas = canvasRes.canvas
+	mainCtx = canvasRes.ctx
+
+	console.log('✅ Canvas初始化成功')
 
 	const gridSize = selectedSize.value
 
-	// 固定格子大小为22px
+	// 固定格子大小为22px（绘制时的大小）
 	const cellSize = 22
+
+	// 动态计算 Canvas 显示尺寸
+	const displaySize = computedCanvasDisplaySize.value
+	const actualCanvasSize = displaySize / 5 // 显示尺寸 = 绘制尺寸 / 5
+
+	console.log(`📐 示例图纸配置: gridSize=${gridSize}, cellSize=${cellSize}px, displaySize=${displaySize}px`)
+	console.log(`📏 实际Canvas显示尺寸: ${actualCanvasSize}px`)
 
 	// 计算缩放比例以适配窗口
 	const originalContentSize = gridSize * cellSize
-	const maxImageSize = canvasSize * 0.8
-	const zoomScale = Math.min(maxImageSize / originalContentSize, 1)
+	const fitScale = Math.min(actualCanvasSize / originalContentSize, 1)
 
 	// 更新显示的格子大小和缩放级别
-	cellSizeDisplay.value = Math.round(cellSize * zoomScale * 10) / 10
-	zoomLevel.value = zoomScale
+	cellSizeDisplay.value = Math.round(cellSize * fitScale * 10) / 10
+	zoomLevel.value = fitScale
 
-	console.log(`📐 示例图纸适配: gridSize=${gridSize}, cellSize=${cellSize}px, zoomScale=${zoomScale.toFixed(2)}`)
+	console.log(`🔢 缩放适配: originalContentSize=${originalContentSize}px, fitScale=${fitScale.toFixed(3)}`)
 
-	pdCanvas.value.setFillStyle('#ffffff')
-	pdCanvas.value.fillRect(0, 0, canvasSize, canvasSize)
+	// 设置Canvas尺寸
+	mainCanvas.width = displaySize
+	mainCanvas.height = displaySize
 
-	// 应用整体缩放（不手动平移），让CSS flex自动居中
-	// 从左上角开始绘制
-	pdCanvas.value.scale(zoomScale, zoomScale)
+	// 清空画布
+	mainCtx.fillStyle = '#ffffff'
+	mainCtx.fillRect(0, 0, displaySize, displaySize)
+
+	// 5倍高清缩放
+	mainCtx.save()
+	mainCtx.scale(5, 5) // 5倍放大绘制
 
 	const colorCountMap = {}
 
@@ -2048,46 +2130,52 @@ const generateDemoImage = () => {
 			}
 			colorCountMap[color.code].count++
 
-			pdCanvas.value.setFillStyle(color.hex)
-			pdCanvas.value.beginPath()
-			pdCanvas.value.arc(
+			mainCtx.fillStyle = color.hex
+			mainCtx.beginPath()
+			mainCtx.arc(
 				i * cellSize + cellSize / 2,
 				j * cellSize + cellSize / 2,
 				cellSize / 2 - 1,
 				0,
 				2 * Math.PI
 			)
-			pdCanvas.value.fill()
+			mainCtx.fill()
 		}
 	}
 
-	pdCanvas.value.setStrokeStyle('#e8e8e8')
-	pdCanvas.value.setLineWidth(0.5 / zoomScale) // 考虑缩放，保持线条粗细一致
+	mainCtx.strokeStyle = '#e8e8e8'
+	mainCtx.lineWidth = 0.5 / zoomScale // 考虑缩放，保持线条粗细一致
 	for (let i = 0; i <= gridSize; i++) {
-		pdCanvas.value.moveTo(0, i * cellSize)
-		pdCanvas.value.lineTo(gridSize * cellSize, i * cellSize)
-		pdCanvas.value.moveTo(i * cellSize, 0)
-		pdCanvas.value.lineTo(i * cellSize, gridSize * cellSize)
+		mainCtx.beginPath()
+		mainCtx.moveTo(0, i * cellSize)
+		mainCtx.lineTo(gridSize * cellSize, i * cellSize)
+		mainCtx.stroke()
+
+		mainCtx.beginPath()
+		mainCtx.moveTo(i * cellSize, 0)
+		mainCtx.lineTo(i * cellSize, gridSize * cellSize)
+		mainCtx.stroke()
 	}
-	pdCanvas.value.stroke()
+
+	mainCtx.restore() // 恢复5倍高清缩放
 
 	colorStats.value = Object.values(colorCountMap).sort((a, b) => b.count - a.count)
 
-	pdCanvas.value.draw(false, () => {
-		canvasReady.value = true
-		// 重置pan值为0（居中），浮窗模式下不重置缩放
-		if (!isFloating.value) {
-			panX.value = 0
-			panY.value = 0
-			zoomLevel.value = 1
-		} else {
-			// 浮窗模式下，重新适配缩放
-			const fitTimeout = setTimeout(() => {
-				fitCanvasToFloatingWindow()
-				clearTimeout(fitTimeout)
-			}, 100)
-		}
-	})
+	canvasReady.value = true
+	console.log('✅ 示例图纸绘制完成')
+
+	// 重置pan值为0（居中），浮窗模式下不重置缩放
+	if (!isFloating.value) {
+		panX.value = 0
+		panY.value = 0
+		zoomLevel.value = 1
+	} else {
+		// 浮窗模式下，重新适配缩放
+		console.log('🎯 浮窗模式下，重新适配缩放...')
+		setTimeout(() => {
+			fitCanvasToFloatingWindow()
+		}, 100)
+	}
 }
 
 const regenerate = () => {
@@ -2367,9 +2455,9 @@ onMounted(() => {
 	&.floating-window {
 		flex: 1;
 		width: 100%;
-		height: auto;
+		height: 400rpx;
 		padding: 0; // 浮窗模式去掉padding，让图纸占满
-		border-radius: 16rpx;
+		border-radius: 0;
 		overflow: hidden;
 		background: #ffffff;
 		transition: none; // 拖拽时禁用过渡效果
@@ -2379,6 +2467,9 @@ onMounted(() => {
 		align-items: center;
 		justify-content: center;
 		z-index: 99999; // 提高层级，确保在最上面
+		margin-bottom: 0;
+		border: none;
+
 
 		.canvas-container {
 			width: 100% !important;
@@ -2636,6 +2727,26 @@ onMounted(() => {
 			}
 		}
 	}
+
+	.floating-window {
+		flex: 1;
+		width: 100%;
+		height: 400rpx;
+		padding: 0; // 浮窗模式去掉padding，让图纸占满
+		border-radius: 16rpx;
+		overflow: hidden;
+		background: #ffffff;
+		transition: none; // 拖拽时禁用过渡效果
+		box-shadow: 0 8rpx 32rpx rgba(0, 0, 0, 0.3);
+		cursor: move;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		z-index: 99999; // 提高层级，确保在最上面
+		margin-bottom: 0;
+		border: none;
+	}
+
 }
 
 /* 操作按钮 */
