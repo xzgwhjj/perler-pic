@@ -51,7 +51,7 @@
               backgroundColor="#e8e8e8" block-size="20" />
             <view class="size-input-container">
               <input class="size-input" type="number" v-model="gridWidth" @blur="onGridWidthInput"
-                @confirm="onGridWidthInput" min="5" max="1000" />
+                @confirm="onGridWidthInput" min="5" max="300" />
             </view>
           </view>
         </view>
@@ -71,7 +71,7 @@
               backgroundColor="#e8e8e8" block-size="20" />
             <view class="size-input-container">
               <input class="size-input" type="number" v-model="gridHeight" @blur="onGridHeightInput"
-                @confirm="onGridHeightInput" min="5" max="1000" />
+                @confirm="onGridHeightInput" min="5" max="300" />
             </view>
           </view>
         </view>
@@ -87,32 +87,36 @@
     <!-- 高级选项 -->
     <view class="advanced-section">
       <view class="advanced-header" @click="showAdvancedOptions">
-		<image src="/static/svg/advanced.svg" class="advanced-icon" mode="aspectFit" />
+        <image src="/static/svg/advanced.svg" class="advanced-icon" mode="aspectFit" />
         <text class="advanced-title">高级选项</text>
-        <text class="advanced-arrow" :class="{ 'is-open': showAdvancedPicker }">›</text>
+        <image src="/static/svg/arrow3.svg" class="advanced-arrow" :class="{ 'is-open': showAdvancedPicker }" />
       </view>
       <view class="advanced-content" v-if="showAdvancedPicker">
         <!-- 颜色合并阈值 -->
         <view class="advanced-item">
           <text class="item-label">颜色合并阈值</text>
           <view class="slider-input-container">
-            <slider :value="colorMergeThreshold" min="0" max="100" @change="onMergeThresholdChange" activeColor="#1a1a2e" backgroundColor="#e8e8e8" block-size="20" />
+            <slider :value="colorMergeThreshold" min="0" max="100" @change="onMergeThresholdChange"
+              activeColor="#1a1a2e" backgroundColor="#e8e8e8" block-size="20" />
             <view class="size-input-container">
-              <input class="size-input" type="number" v-model="colorMergeThreshold" @blur="onMergeThresholdInput" @confirm="onMergeThresholdInput" min="0" max="100" />
+              <input class="size-input" type="number" v-model="colorMergeThreshold" @blur="onMergeThresholdInput"
+                @confirm="onMergeThresholdInput" min="0" max="100" />
               <text class="unit-text">阈值</text>
             </view>
           </view>
         </view>
-        
+
         <!-- 转换模式 -->
         <view class="advanced-item">
           <text class="item-label">转换模式</text>
-          <view class="setting-select" @click="showModePicker = true">
-            <text class="select-value">{{ getModeName(pixelationMode) }}</text>
-            <text class="select-arrow">›</text>
+          <view class="mode-scroll">
+            <view v-for="mode in modeOptions" :key="mode.id" class="brand-tag mode-tag"
+              :class="{ active: pixelationMode === mode.id }" @click="onModeChange(mode.id)">
+              <text class="brand-name">{{ mode.name }}</text>
+            </view>
           </view>
         </view>
-        
+
         <!-- 显示拼豆板子 -->
         <view class="advanced-item">
           <text class="item-label">显示拼豆板子</text>
@@ -120,7 +124,7 @@
             <switch :checked="showBoard" @change="onShowBoardChange" color="#1a1a2e" />
           </view>
         </view>
-        
+
         <!-- 显示颜色code -->
         <view class="advanced-item">
           <text class="item-label">显示颜色code</text>
@@ -141,28 +145,14 @@
       </button>
     </view>
 
-    <!-- 转换模式选择弹窗 -->
-    <picker-view v-if="showModePicker" class="brand-picker" :value="[modeIndex]" @change="onModeChange">
-      <view class="picker-header">
-        <text class="picker-cancel" @click="showModePicker = false">取消</text>
-        <text class="picker-title">选择转换模式</text>
-        <text class="picker-confirm" @click="showModePicker = false">确定</text>
-      </view>
-      <picker-view-column>
-        <view v-for="(mode, index) in modeOptions" :key="index" class="picker-item">
-          {{ mode.name }}
-        </view>
-      </picker-view-column>
-    </picker-view>
-
     <!-- 自定义TabBar -->
     <tabbar :current="0"></tabbar>
   </view>
 </template>
 
 <script setup>
+import { onShareAppMessage } from '@dcloudio/uni-app';
 import { computed, ref } from "vue";
-import { onShareAppMessage } from '@dcloudio/uni-app'
 
 const selectedImage = ref("");
 const selectedBrand = ref("mard");
@@ -179,7 +169,7 @@ const brands = [
   { id: "panpan", name: "盼盼" },
 ];
 
-onShareAppMessage(()=>{})
+onShareAppMessage(() => { })
 
 const onGridWidthChange = (e) => {
   const newWidth = e.detail.value;
@@ -198,14 +188,14 @@ const onGridHeightChange = (e) => {
 };
 
 const onGridWidthInput = () => {
-  gridWidth.value = Math.max(5, Math.min(1000, parseInt(gridWidth.value) || 30));
+  gridWidth.value = Math.max(5, Math.min(300, parseInt(gridWidth.value) || 30));
   if (isLocked.value && imageAspectRatio.value) {
     gridHeight.value = Math.round(gridWidth.value / imageAspectRatio.value);
   }
 };
 
 const onGridHeightInput = () => {
-  gridHeight.value = Math.max(5, Math.min(1000, parseInt(gridHeight.value) || 30));
+  gridHeight.value = Math.max(5, Math.min(300, parseInt(gridHeight.value) || 30));
   if (isLocked.value && imageAspectRatio.value) {
     gridWidth.value = Math.round(gridHeight.value * imageAspectRatio.value);
   }
@@ -274,8 +264,8 @@ const onMergeThresholdInput = () => {
   colorMergeThreshold.value = Math.max(0, Math.min(100, parseInt(colorMergeThreshold.value) || 30));
 };
 
-const onModeChange = (e) => {
-  pixelationMode.value = modeOptions[e.detail.value[0]].id;
+const onModeChange = (id) => {
+  pixelationMode.value = id;
 };
 
 const onShowBoardChange = (e) => {
@@ -454,6 +444,26 @@ const startGenerate = () => {
   .brand-name {
     font-size: var(--text-base);
     font-weight: 500;
+  }
+}
+
+.mode-scroll {
+  gap: 16rpx;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  display: grid;
+}
+
+.mode-tag {
+  font-weight: 500;
+  font-size: 26rpx;
+  border: 2rpx solid var(--border-medium);
+  border-radius: 20rpx;
+  color: var(--text-tertiary);
+
+  &.active {
+    color: #ffffff;
+    background: var(--text-primary);
+    border-color: var(--text-primary);
   }
 }
 
@@ -720,12 +730,13 @@ slider {
   justify-content: center;
   align-items: center;
   cursor: pointer;
-  
-  .advanced-icon{
-	  width: 40rpx;
-	  height: 40rpx;
+  gap: 20rpx;
+
+  .advanced-icon {
+    width: 40rpx;
+    height: 40rpx;
   }
-  
+
   &:active {
     background: var(--bg-secondary);
   }
@@ -738,12 +749,12 @@ slider {
 }
 
 .advanced-arrow {
-  font-size: 40rpx;
-  color: #ccc;
+  width: 32rpx;
+  height: 32rpx;
   transition: transform 0.3s ease;
-  
+
   &.is-open {
-    transform: rotate(90deg);
+    transform: rotate(180deg);
   }
 }
 
@@ -755,7 +766,7 @@ slider {
 .advanced-item {
   padding: 24rpx 0;
   border-bottom: 1rpx solid #f0f0f0;
-  
+
   &:last-child {
     border-bottom: none;
   }
@@ -776,12 +787,12 @@ slider {
   padding: 16rpx 24rpx;
   border-radius: 12rpx;
   border: 2rpx solid #e8e8e8;
-  
+
   .select-value {
     font-size: 26rpx;
     color: #1a1a2e;
   }
-  
+
   .select-arrow {
     font-size: 32rpx;
     color: #999;
