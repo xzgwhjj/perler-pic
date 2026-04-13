@@ -54,10 +54,11 @@
 				<view class="fullscreen-close" v-if="isFullscreen" @click="toggleFullscreen">
 					<text>✕</text>
 				</view>
-				<movable-area :scale-area="true" class="canvas-container" :style="canvasContainerStyle">
-					<movable-view :scale="true" direction="all" :x="panX" :y="panY" :scale-value="scaleValue"
-						class="canvas-drag-container" :style="dragContainerStyle" @scale="onScale">
-						<canvas type="2d" id="mainCanvas" class="pd-canvas" :style="canvasStyle" />
+				<movable-area :scale-area="true" class="canvas-container" :style="canvasContainerStyle" style="background-color:darkseagreen">
+					<movable-view :scale="true" direction="all" :x="panX" :y="panY" :scale-min="0.2"
+						:scale-value="scaleValue" class="canvas-drag-container" :style="dragContainerStyle"
+						@scale="onScale" style="background-color:aqua">
+						<canvas type="2d" id="mainCanvas" class="pd-canvas" :style="canvasStyle"  style="background-color:bisque"/>
 					</movable-view>
 				</movable-area>
 				<view class="zoom-controls" v-if="isFullscreen">
@@ -472,7 +473,7 @@ const canvasReady = ref(false)
 const colorStats = ref([])
 const isFullscreen = ref(false)
 const isFloating = ref(false)
-const zoomLevel = ref(1)
+const zoomLevel = ref(0.2)
 const panX = ref(0)
 const panY = ref(0)
 const isDragging = ref(false)
@@ -709,41 +710,73 @@ const canvasContainerStyle = computed(() => {
 			touchAction: 'none'
 		}
 	}
+	// 非全屏模式：根据网格比例计算容器高度
+	// movable-view 宽度 3000rpx，初始缩放 0.2 显示为 600rpx
+	// 高度根据网格比例计算，初始缩放后需要足够空间
+	const cols = gridColumns.value || 30
+	const rows = gridRows.value || 30
+	const ratio = cols / rows
+	const canvasHeightRpx = Math.round(3000 / ratio)
+	// 初始缩放 0.2 后的显示高度，加上一些边距
+	const containerHeightRpx = Math.max(300, Math.round(canvasHeightRpx * 0.2 + 40))
+
 	return {
 		width: '600rpx',
-		height: '600rpx',
+		height: `${containerHeightRpx}rpx`,
 		overflow: 'hidden',
 		touchAction: 'none' // 禁用默认触摸行为，避免页面滚动
 	}
 })
 
 const dragContainerStyle = computed(() => {
+	// 基于网格尺寸计算宽高比
+	const cols = gridColumns.value || 30
+	const rows = gridRows.value || 30
+	const ratio = cols / rows
+
+	// 宽度固定为 3000rpx，高度根据比例计算
+	const heightRpx = Math.round(3000 / ratio)
+
 	return {
-		width: '600rpx',
-		height: '600rpx',
-		transition: isDragging.value ? 'none' : 'transform 0.2s ease-out'
+		width: '3000rpx',
+		height: `${heightRpx}rpx`,
+		// transition: isDragging.value ? 'none' : 'transform 0.2s ease-out'
 	}
 })
 
-// Canvas 样式：浮窗模式下使用实际像素尺寸，其他模式使用固定尺寸
+// Canvas 样式：根据网格尺寸动态计算宽高（保持比例）
 const canvasStyle = computed(() => {
 	if (isFloating.value) {
-		// 浮窗模式下，Canvas 尺寸由 JavaScript 设置，CSS 只控制显示
 		return {
 			display: 'block'
-			// 宽高由 Canvas 上下文设置决定
 		}
 	}
+	// 基于网格尺寸计算宽高比
+	const cols = gridColumns.value || 30
+	const rows = gridRows.value || 30
+	const ratio = cols / rows
+
+	// 宽度固定为 3000rpx，高度根据比例计算
+	const heightRpx = Math.round(3000 / ratio)
+
+	console.log(`🎨 canvasStyle计算: ${cols}×${rows}, 比例=${ratio.toFixed(2)}, 高度=${heightRpx}rpx`)
+
 	return {
-		width: '600rpx',
-		height: '600rpx',
+		width: '3000rpx',
+		height: `${heightRpx}rpx`,
 		display: 'block'
 	}
 })
 
-// 计算缩放值：浮窗模式下使用fitCanvasToFloatingWindow计算的缩放，其他模式为1
+// movable-view 的缩放值
+// 初始 0.2 让 3000rpx 的画布适应 600rpx 容器显示
+// 最大 10 倍，总共可达 50 倍放大效果
 const scaleValue = computed(() => {
-	return isFloating.value ? zoomLevel.value : 1
+	if (isFloating.value) {
+		return zoomLevel.value
+	}
+	// 非浮窗模式：初始适应容器 (0.2)，最大 10 倍
+	return zoomLevel.value || 0.2
 })
 
 // 移除canvasWidth和canvasHeight计算属性，Canvas尺寸在JavaScript中设置
@@ -870,24 +903,29 @@ const toggleFullscreen = () => {
 		// 进入全屏时居中显示
 		centerMovableViewInFullscreen()
 	} else {
-		// 退出全屏时重置位置
+		// 退出全屏时重置位置，缩放回初始 0.2
 		panX.value = 0
 		panY.value = 0
-		zoomLevel.value = 1
+		zoomLevel.value = MIN_SCALE
 	}
 }
 
-// 缩放功能
+// 缩放功能：基于 0.2 的初始缩放
+const MIN_SCALE = 0.2  // 最小缩放，让 3000rpx 画布适应 600rpx 容器
+const MAX_SCALE = 10   // 最大缩放，50 倍放大效果
+
 const zoomIn = () => {
-	zoomLevel.value = Math.min(zoomLevel.value + 0.25, 10)
+	const current = zoomLevel.value || MIN_SCALE
+	zoomLevel.value = Math.min(current + 0.25, MAX_SCALE)
 }
 
 const zoomOut = () => {
-	zoomLevel.value = Math.max(zoomLevel.value - 0.25, 0.5)
+	const current = zoomLevel.value || MIN_SCALE
+	zoomLevel.value = Math.max(current - 0.25, MIN_SCALE)
 }
 
 const resetZoom = () => {
-	zoomLevel.value = 1
+	zoomLevel.value = MIN_SCALE
 	panX.value = 0
 	panY.value = 0
 }
@@ -1023,9 +1061,9 @@ const toggleFloating = () => {
 
 		setTimeout(tryCenter, 500)
 	} else {
-		// 退出浮窗时重置为原始大小
+		// 退出浮窗时重置为初始缩放 0.2
 		console.log(`🚪 退出浮窗模式，重置位置`)
-		zoomLevel.value = 1
+		zoomLevel.value = MIN_SCALE
 		panX.value = 0
 		panY.value = 0
 		console.log(`📊 movable-view 重置后位置: x=${panX.value}, y=${panY.value}`)
@@ -1188,6 +1226,65 @@ const centerMovableViewInFullscreen = async () => {
 					console.log(`📍 movable-view 位置: x=${panX.value}px, y=${panY.value}px (相对于 movable-area 左上角)`)
 					console.log(`📐 movable-area 尺寸: ${floatWinWidthRpx}×${floatWinHeightRpx}rpx (${floatWinWidthPx.toFixed(2)}×${floatWinHeightPx.toFixed(2)}px)`)
 					console.log(`🎯 Canvas 缩放后尺寸: ${(canvasWidthPx * fitScale).toFixed(2)}×${(canvasHeightPx * fitScale).toFixed(2)}px`)
+				})
+		})
+}
+
+// 非全屏模式：让 Canvas 居中显示
+const centerCanvasInNormalMode = async () => {
+	// 仅在非全屏、非浮窗模式下执行
+	if (isFullscreen.value || isFloating.value) return
+
+	console.log('🎯 开始非全屏模式居中计算...')
+
+	// 等待 canvas 渲染完成
+	await new Promise(resolve => setTimeout(resolve, 200))
+
+	const query = uni.createSelectorQuery().in(getCurrentPages()[getCurrentPages().length - 1])
+
+	// 获取 movable-area 的尺寸
+	query.select('.canvas-container')
+		.fields({ size: true })
+		.exec((areaRes) => {
+			if (!areaRes || !areaRes[0]) {
+				console.error('❌ 无法获取 movable-area 尺寸')
+				return
+			}
+
+			const areaWidthPx = areaRes[0].width
+			const areaHeightPx = areaRes[0].height
+
+			// 获取 Canvas 实际尺寸（像素）
+			query.select('#mainCanvas')
+				.fields({ size: true })
+				.exec((canvasRes) => {
+					if (!canvasRes || !canvasRes[0]) {
+						console.error('❌ 无法获取 Canvas 尺寸')
+						return
+					}
+
+					const canvasWidthPx = canvasRes[0].width
+					const canvasHeightPx = canvasRes[0].height
+
+					// 获取当前缩放级别
+					const scale = zoomLevel.value || 0.2
+
+					// Canvas 缩放后的尺寸
+					const scaledWidth = canvasWidthPx * scale
+					const scaledHeight = canvasHeightPx * scale
+
+					// 计算居中偏移（px）
+					const offsetX = (areaWidthPx - scaledWidth) / 2
+					const offsetY = (areaHeightPx - scaledHeight) / 2
+
+					console.log(`📐 movable-area: ${areaWidthPx.toFixed(2)}×${areaHeightPx.toFixed(2)}px`)
+					console.log(`🎨 Canvas: ${canvasWidthPx}×${canvasHeightPx}px, 缩放后: ${scaledWidth.toFixed(2)}×${scaledHeight.toFixed(2)}px`)
+					console.log(`📍 居中偏移: x=${offsetX.toFixed(2)}px, y=${offsetY.toFixed(2)}px`)
+
+					// 设置居中位置
+					panX.value = Math.max(0, offsetX)
+					panY.value = Math.max(0, offsetY)
+					console.log(`✅ 非全屏居中完成: panX=${panX.value}, panY=${panY.value}`)
 				})
 		})
 }
@@ -1586,9 +1683,8 @@ const processImage = async () => {
 
 		console.log('网格尺寸:', N, 'x', M, '(横向 x 纵向)')
 
-		// 4. 设置Canvas尺寸（高清绘制：绘制尺寸是显示尺寸的2倍）
-		mainCanvas.width = displaySize
-		mainCanvas.height = displaySize
+		// 4. 设置处理Canvas尺寸（用于获取ImageData）
+		// mainCanvas 的尺寸会在 drawPerlerResult 中根据网格尺寸设置
 		processCanvas.width = width
 		processCanvas.height = height
 
@@ -1630,7 +1726,7 @@ const processImage = async () => {
 		gridRows.value = M
 
 		canvasReady.value = true
-		uni.hideLoading()
+		// uni.hideLoading()
 
 	} catch (error) {
 		console.error('处理失败:', error)
@@ -1646,90 +1742,68 @@ const processImage = async () => {
 
 /**
  * 绘制 Perler-Beads 风格结果
+ * 
+ * 缩放方案：
+ * - movable-view 尺寸: 3000rpx × 3000rpx
+ * - movable-view scale 0.2: 显示 600rpx（适应容器）
+ * - movable-view scale 10: 显示 30000rpx（50倍放大）
+ * - Canvas 内部固定 22px 绘制，动态缩放（确保 Canvas ≤ 16384px）
  */
 function drawPerlerResult(result, colorPalette, showColorCode = true) {
-	const displaySize = computedCanvasDisplaySize.value
-	console.log('🎨 drawPerlerResult - Canvas绘制尺寸:', displaySize, 'px')
-	console.log(`📊 当前模式 - isFloating: ${isFloating.value}, isFullscreen: ${isFullscreen.value}`)
-	console.log(`📊 computedCanvasDisplaySize 计算值: ${displaySize}px`)
-
 	const { mappedData, colorCounts, totalBeads, gridSize } = result
 	const { N, M } = gridSize
 
-	// 确保Canvas为正方形
+	// 固定格子大小 22px
+	const cellSize = 22
+
+	// 原始图纸尺寸
+	const originalWidth = N * cellSize
+	const originalHeight = M * cellSize
+
+	// Canvas 最大尺寸限制 16384px
+	const MAX_CANVAS_SIZE = 16384
+
+	// 动态计算高清缩放倍数，确保 Canvas 不超过限制
+	const maxScaleX = MAX_CANVAS_SIZE / originalWidth
+	const maxScaleY = MAX_CANVAS_SIZE / originalHeight
+	const hdScale = Math.min(maxScaleX, maxScaleY, 5) // 最大 5 倍
+
+	// Canvas 绘制尺寸
+	const canvasPixelWidth = Math.round(originalWidth * hdScale)
+	const canvasPixelHeight = Math.round(originalHeight * hdScale)
+
+	console.log(`🎨 drawPerlerResult: ${N}×${M}钉, cellSize=${cellSize}px`)
+	console.log(`   原始尺寸: ${originalWidth}×${originalHeight}px`)
+	console.log(`   高清缩放: ${hdScale.toFixed(2)}x`)
+	console.log(`   Canvas尺寸: ${canvasPixelWidth}×${canvasPixelHeight}px`)
+
+	// 设置 Canvas 尺寸
 	if (mainCanvas) {
-		console.log(`📐 设置Canvas宽高 - width: ${displaySize}, height: ${displaySize}`)
-		mainCanvas.width = displaySize
-		mainCanvas.height = displaySize
+		mainCanvas.width = canvasPixelWidth
+		mainCanvas.height = canvasPixelHeight
 	}
 
 	// 清空画布
-	mainCtx.clearRect(0, 0, displaySize, displaySize)
+	mainCtx.clearRect(0, 0, canvasPixelWidth, canvasPixelHeight)
 
-	// 5倍高清缩放：将绘制内容放大5倍（3000px绘制，600rpx显示）
-	const scaleRatio = displaySize / canvasSize
+	// 高清缩放
 	mainCtx.save()
-	mainCtx.scale(scaleRatio, scaleRatio)
+	mainCtx.scale(hdScale, hdScale)
 
-	// 自适应缩放：保证放大后每个格子至少22px
-	const MIN_CELL_SIZE = 22 // 格子固定22px
-	const MAX_ZOOM = 10 // 最大放大倍数
-	const MIN_SCREEN_CELL_SIZE = 22 // 放大后每个格子至少22px才清晰
-	const cellSize = MIN_CELL_SIZE
-	
-	// 10倍放大绘制：displaySize=6000px, canvasSize=600rpx
-	// maxImageSize 是容器内可用的最大尺寸（rpx）
-	const maxImageSize = canvasSize * 0.95
-	const maxDimension = Math.max(N, M)
-	
-	// 计算：格子固定22px时，放大10倍后能否达到22px屏幕尺寸
-	// 公式推导：
-	// - 格子在容器中显示尺寸 = cellSize × zoomScale (rpx)
-	// - 放大10倍后 = cellSize × zoomScale × 10 ≥ 22
-	// - 而 zoomScale = maxImageSize / (maxDimension × cellSize)
-	// - 代入化简：maxImageSize × 10 / maxDimension ≥ 22
-	// - 即：maxDimension ≤ maxImageSize × 10 / 22
-	
-	const maxDimensionForFullClarity = Math.round(maxImageSize * MAX_ZOOM / MIN_SCREEN_CELL_SIZE)
-	
-	// 计算图纸原始尺寸
-	const originalWidth = N * cellSize
-	const originalHeight = M * cellSize
-	
-	// 计算缩放比例以适配容器
-	const scaleX = maxImageSize / originalWidth
-	const scaleY = maxImageSize / originalHeight
-	const zoomScale = Math.min(scaleX, scaleY, 1) // 最大为1（不放大）
-	
-	// 计算放大10倍后的格子屏幕尺寸
-	const screenCellSizeAtMaxZoom = cellSize * zoomScale * MAX_ZOOM
-	const screenCellSizeAtCurrent = cellSize * zoomScale
-	
-	console.log(`📐 10倍放大绘制: displaySize=6000px, canvasSize=${canvasSize}rpx`)
-	console.log(`   钉数: ${N}×${M} = ${N * M} 钉`)
-	console.log(`   格子大小: ${cellSize}px (固定)`)
-	console.log(`   初始缩放: zoomScale=${zoomScale.toFixed(2)}`)
-	console.log(`   当前格子屏幕尺寸: ${screenCellSizeAtCurrent.toFixed(1)}rpx`)
-	console.log(`   放大${MAX_ZOOM}倍后格子尺寸: ${screenCellSizeAtMaxZoom.toFixed(1)}rpx ${screenCellSizeAtMaxZoom >= MIN_SCREEN_CELL_SIZE ? '✅ 清晰' : '⚠️ 较小'}`)
-	
-	if (maxDimension > maxDimensionForFullClarity) {
-		console.log(`   📢 钉数较多(${maxDimension}>${maxDimensionForFullClarity})，放大后格子较小`)
+	// 绘制起点
+	const startX = 0
+	const startY = 0
+
+	// 首次绘制：zoomLevel = 0.2（让 3000rpx 画布适应 600rpx 容器）
+	const MIN_SCALE = 0.2
+	if (zoomLevel.value === 0 || zoomLevel.value === 1) {
+		zoomLevel.value = MIN_SCALE
 	}
 
-	// 应用整体缩放
-	mainCtx.save()
-	mainCtx.scale(zoomScale, zoomScale)
+	// 更新显示的格子大小
+	cellSizeDisplay.value = cellSize
 
-	console.log(`📐 图纸适配: N=${N}, M=${M}, cellSize=${cellSize}px, zoomScale=${zoomScale.toFixed(2)}`)
-
-	// 更新显示的格子大小和缩放级别
-	cellSizeDisplay.value = Math.round(cellSize * zoomScale * 10) / 10
-	zoomLevel.value = zoomScale
-
-	// 计算居中位置：在缩放后的坐标系中，图纸尺寸为 N*cellSize x M*cellSize
-	// 需要居中到 canvasSize/zoomScale 的容器中
-	const startX = (canvasSize / zoomScale - N * cellSize) / 2
-	const startY = (canvasSize / zoomScale - M * cellSize) / 2
+	console.log(`📐 图纸绘制: N=${N}, M=${M}, cellSize=${cellSize}px, zoomLevel=${zoomLevel.value}`)
 
 	// 绘制拼豆
 	for (let y = 0; y < M; y++) {
@@ -1747,26 +1821,11 @@ function drawPerlerResult(result, colorPalette, showColorCode = true) {
 		}
 	}
 
-	// 绘制颜色code（用户选择显示时，无论如何都要显示）
+	// 绘制颜色 code
 	if (showColorCode) {
-		// 动态计算合适的字体大小 - 格子越小，相对字体越大
-		const minFontSize = 6
-		const maxFontSize = 24
-		let fontSize
+		// 固定字体大小为 cellSize 的 40%
+		const fontSize = Math.max(8, Math.min(14, cellSize * 0.4))
 
-		// 智能字体比例：格子越小，字体占格子比例越大
-		if (cellSize < 12) {
-			// 超小格子：字体占60%格子高度
-			fontSize = Math.max(minFontSize, cellSize * 0.6)
-		} else if (cellSize < 16) {
-			// 小格子：字体占50%格子高度
-			fontSize = Math.max(minFontSize, cellSize * 0.5)
-		} else {
-			// 正常格子：字体占40%格子高度
-			fontSize = Math.max(minFontSize, Math.min(maxFontSize, cellSize * 0.4))
-		}
-
-		// 启用高质量文字渲染
 		mainCtx.imageSmoothingEnabled = true
 		mainCtx.imageSmoothingQuality = 'high'
 
@@ -1777,105 +1836,44 @@ function drawPerlerResult(result, colorPalette, showColorCode = true) {
 					const centerX = startX + x * cellSize + cellSize / 2
 					const centerY = startY + y * cellSize + cellSize / 2
 
-					// 根据code长度微调字体大小
-					const codeLength = pixel.key.length
-					const adjustedFontSize = codeLength > 3 ? fontSize * 0.85 : fontSize
-
-					// 计算背景色亮度，自动选择黑色或白色文字
+					// 计算背景色亮度
 					const bgColor = pixel.color
 					const r = parseInt(bgColor.slice(1, 3), 16)
 					const g = parseInt(bgColor.slice(3, 5), 16)
 					const b = parseInt(bgColor.slice(5, 7), 16)
-					// 使用感知亮度公式：亮度 = 0.299*R + 0.587*G + 0.114*B
 					const brightness = (r * 299 + g * 587 + b * 114) / 1000
 					const textColor = brightness > 128 ? '#000000' : '#FFFFFF'
 
-					// 根据格子大小决定是否简化code显示
-					let displayCode = pixel.key
-					if (cellSize < 12) {
-						// 超小格子：只显示前2个字符
-						displayCode = pixel.key.substring(0, 2)
-					} else if (cellSize < 16) {
-						// 小格子：只显示前3个字符
-						displayCode = pixel.key.substring(0, 3)
-					}
-
 					mainCtx.fillStyle = textColor
-					mainCtx.font = `bold ${adjustedFontSize}px system-ui, -apple-system, sans-serif`
+					mainCtx.font = `bold ${fontSize}px system-ui, -apple-system, sans-serif`
 					mainCtx.textAlign = 'center'
 					mainCtx.textBaseline = 'middle'
-
-					// 使用fillText绘制文字，确保矢量质量
-					mainCtx.fillText(displayCode, centerX, centerY)
+					mainCtx.fillText(pixel.key, centerX, centerY)
 				}
 			}
 		}
 	}
 
-	// 绘制网格线
-	if (showBoard.value) {
-		mainCtx.strokeStyle = '#cccccc'
-		mainCtx.lineWidth = 0.5
-
-		// 纵向线
-		for (let x = 0; x <= N; x++) {
-			mainCtx.beginPath()
-			mainCtx.moveTo(startX + x * cellSize, startY)
-			mainCtx.lineTo(startX + x * cellSize, startY + M * cellSize)
-			mainCtx.stroke()
-		}
-
-		// 横向线
-		for (let y = 0; y <= M; y++) {
-			mainCtx.beginPath()
-			mainCtx.moveTo(startX, startY + y * cellSize)
-			mainCtx.lineTo(startX + N * cellSize, startY + y * cellSize)
-			mainCtx.stroke()
-		}
-	}
+	// 恢复缩放
+	mainCtx.restore()
 
 	console.log('✅ Perler-Beads 绘制完成！')
 	console.log(`总珠子数: ${totalBeads}`)
 	console.log(`颜色数: ${Object.keys(colorCounts).length}`)
-	console.log(`格子大小: ${cellSize.toFixed(1)}px`)
+	console.log(`格子大小: ${cellSize}px (固定)`)
 
-	// 如果格子太小，给用户提示建议使用放大功能
-	if (showColorCode && cellSize < 14) {
-		const tip = `当前格子大小(${cellSize.toFixed(1)}px)过小，建议使用放大功能查看code号`
-		console.warn(tip)
-		uni.showToast({
-			title: '钉数过多，建议放大查看',
-			icon: 'none',
-			duration: 3000
-		})
-	}
+	uni.hideLoading()
 
-	// 恢复图纸缩放和5倍高清缩放
-	mainCtx.restore() // 恢复图纸缩放
-	mainCtx.restore() // 恢复5倍高清缩放
-
-	// 重置pan值为0（居中），浮窗模式下不重置缩放
-	if (!isFloating.value && !isFullscreen.value) {
+	// 非全屏模式下居中显示
+	if (!isFullscreen.value && !isFloating.value) {
+		centerCanvasInNormalMode()
+	} else {
+		// 全屏或浮窗模式下重置为 0
 		panX.value = 0
 		panY.value = 0
-		zoomLevel.value = 1
 	}
 
-	console.log(`✅ 图纸绘制完成: panX=${panX.value}, panY=${panY.value}, zoomLevel=${zoomLevel.value}`)
-
-	// 如果是浮窗模式，重新适配缩放
-	if (isFloating.value) {
-		setTimeout(() => {
-			fitCanvasToFloatingWindow()
-		}, 100)
-	}
-
-	// 如果是全屏模式，居中显示
-	if (isFullscreen.value) {
-		setTimeout(() => {
-			centerMovableViewInFullscreen()
-		}, 100)
-	}
+	console.log(`✅ 图纸绘制完成: zoomLevel=${zoomLevel.value}`)
 }
 
 /**
@@ -2304,7 +2302,7 @@ const generateDemoImage = async () => {
 	if (!isFloating.value) {
 		panX.value = 0
 		panY.value = 0
-		zoomLevel.value = 1
+		zoomLevel.value = MIN_SCALE
 	} else {
 		// 浮窗模式下，重新适配缩放
 		console.log('🎯 浮窗模式下，重新适配缩放...')
@@ -2453,6 +2451,12 @@ onLoad(async (options) => {
 			})
 			if (imageInfo && imageInfo.width && imageInfo.height) {
 				imageAspectRatio.value = imageInfo.width / imageInfo.height
+				console.log(`📐 图片尺寸: ${imageInfo.width}×${imageInfo.height}, 宽高比: ${imageAspectRatio.value}`)
+
+				// 根据图片比例重新计算 gridRows（保持 gridColumns 不变）
+				const newRows = Math.round(gridColumns.value / imageAspectRatio.value)
+				gridRows.value = Math.max(5, Math.min(300, newRows))
+				console.log(`📐 更新 gridRows: ${gridRows.value}（基于比例 ${imageAspectRatio.value}）`)
 			}
 		} catch (error) {
 			console.error('获取图片信息失败:', error)
