@@ -1,5 +1,8 @@
 <template>
-	<view class="page-container">
+	<view class="page-container" :class="{ 'no-scroll': isFullscreen }">
+		<!-- 全屏遮罩：完全阻止任何操作穿透 -->
+		<view v-if="isFullscreen" class="fullscreen-overlay" @touchstart.prevent @touchmove.prevent @touchend.prevent @click.prevent></view>
+		
 		<!-- 恢复浮窗按钮 -->
 		<view v-if="isFloatingMinimized && !showExportSettingsDialog" class="floating-restore-btn"
 			@click="restoreFloatingWindow">
@@ -397,7 +400,6 @@ import {
 } from '@dcloudio/uni-app'
 import {
 	computed,
-	nextTick,
 	onMounted,
 	ref
 } from 'vue'
@@ -2590,6 +2592,28 @@ onMounted(() => {
 	box-sizing: border-box;
 	position: relative;
 	z-index: 1;
+}
+
+/* 全屏遮罩：完全阻止任何操作穿透 */
+.fullscreen-overlay {
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	z-index: 9998;
+	background: transparent;
+	pointer-events: all;
+}
+
+/* 全屏模式阻止页面滚动 */
+.page-container.no-scroll {
+	overflow: hidden !important;
+	height: 100vh;
+	position: fixed;
+	left: 0;
+	right: 0;
+	touch-action: none;
 }
 
 /* 预览区域 */
