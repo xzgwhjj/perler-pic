@@ -118,18 +118,18 @@
         </view>
 
         <!-- 显示拼豆板子 -->
-        <view class="advanced-item">
+        <view class="advanced-item show-item">
           <text class="item-label">显示拼豆板子</text>
           <view class="switch-container">
-            <switch :checked="showBoard" @change="onShowBoardChange" color="#1a1a2e" />
+            <switch :checked="showBoard" @change="onShowBoardChange" color="#bedbff" />
           </view>
         </view>
 
         <!-- 显示颜色code -->
-        <view class="advanced-item">
+        <view class="advanced-item show-item">
           <text class="item-label">显示颜色code</text>
           <view class="switch-container">
-            <switch :checked="showColorCode" @change="onShowColorCodeChange" color="#1a1a2e" />
+            <switch :checked="showColorCode" @change="onShowColorCodeChange" color="#bedbff" />
           </view>
         </view>
       </view>
@@ -459,6 +459,7 @@ const startGenerate = () => {
   border: 2rpx solid var(--border-medium);
   border-radius: 20rpx;
   color: var(--text-tertiary);
+  text-align: center;
 
   &.active {
     color: #ffffff;
@@ -771,6 +772,13 @@ slider {
     border-bottom: none;
   }
 }
+
+.show-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
 
 .item-label {
   font-size: 28rpx;
