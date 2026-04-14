@@ -296,7 +296,7 @@
 			<view class="export-settings-container">
 				<view class="export-settings-header">
 					<text class="export-settings-title">导出设置</text>
-					<text class="export-settings-close" @click="showExportSettingsDialog = false">✕</text>
+					<text class="export-settings-close" @click="cancelExportSettings">✕</text>
 				</view>
 				<scroll-view class="export-settings-content" scroll-y>
 					<!-- 导出方式 -->
@@ -407,6 +407,12 @@
 
 		<!-- 隐藏Canvas用于处理图片 -->
 		<canvas type="2d" id="processCanvas" class="hidden-canvas" />
+
+		<!-- 导出专用Canvas（不占用布局空间） -->
+		<canvas type="2d" id="exportCanvas" class="export-canvas" :style="{ width: exportCanvasWidth + 'px', height: exportCanvasHeight + 'px' }" />
+
+		<!-- 二维码专用Canvas -->
+		<canvas type="2d" id="qrCodeCanvas" class="qr-canvas" :style="{ width: '150px', height: '150px' }" />
 	</view>
 </template>
 
@@ -419,6 +425,13 @@ import {
 	flattenColorData
 } from '@/utils/colorUtils.js'
 import {
+	createShareCodeData,
+	decodeShareCode,
+	encodeShareCode,
+	generateShareCodeDisplay,
+	restoreFromShareCode
+} from '@/utils/shareCode.js'
+import {
 	onLoad
 } from '@dcloudio/uni-app'
 import {
@@ -426,6 +439,7 @@ import {
 	onMounted,
 	ref
 } from 'vue'
+import UQRCode from '@/uni_modules/Sansnn-uQRCode/js_sdk/uqrcode/uqrcode.js'
 
 // Canvas显示尺寸（绘制像素）- 10倍放大绘制：6000px绘制，600rpx显示
 const CANVAS_DISPLAY_SIZE = 6000
@@ -501,6 +515,9 @@ const canvasReady = ref(false)
 const colorStats = ref([])
 const isFullscreen = ref(false)
 const isFloating = ref(false)
+
+// 存储拼豆结果数据，用于高清导出
+const perlerResultData = ref(null)
 const zoomLevel = ref(0.2)
 const panX = ref(0)
 const panY = ref(0)
@@ -543,6 +560,110 @@ const exportSettings = ref({
 	addShareCode: true, // 是否添加分享码
 	rememberSettings: false // 记住设置，下次不再弹框
 })
+
+// 分享码相关
+const currentShareCode = ref('') // 当前分享码
+const currentShareCodeData = ref(null) // 当前分享码数据
+
+// 导出专用Canvas尺寸（动态计算）
+const exportCanvasWidth = ref(1000)
+const exportCanvasHeight = ref(1000)
+
+// 导出图片质量设置
+const EXPORT_SCALE = 3 // 导出缩放倍数
+
+// 导出相关常量
+const EXPORT_PADDING = 40 // 导出边距
+const EXPORT_FONT_SIZE = 32 // 导出字体大小
+const SHARE_CODE_SIZE = 150 // 分享码尺寸
+
+// 生成当前图纸的分享码
+const generateCurrentShareCode = () => {
+	// 准备分享码数据
+	const shareData = createShareCodeData({
+		imagePath: imagePath.value,
+		imageAspectRatio: imageAspectRatio.value,
+		brand: selectedBrand.value,
+		boardSize: selectedBoardSize.value,
+		gridColumns: gridColumns.value,
+		gridRows: gridRows.value,
+		pixelationMode: pixelationMode.value,
+		colorMergeThreshold: colorMergeThreshold.value,
+		showBoard: showBoard.value,
+		showColorCode: showColorCode.value,
+		colorData: colorStats.value,
+		exportSettings: exportSettings.value,
+		authorName: authorName.value,
+		watermarkText: watermarkText.value
+	})
+	
+	// 编码
+	const encoded = encodeShareCode(shareData)
+	if (encoded) {
+		currentShareCode.value = encoded
+		currentShareCodeData.value = shareData
+		return encoded
+	}
+	return null
+}
+
+// 获取分享码显示文本
+const getShareCodeDisplay = () => {
+	if (currentShareCode.value) {
+		return generateShareCodeDisplay(currentShareCode.value)
+	}
+	return ''
+}
+
+// 复制分享码
+const copyShareCode = () => {
+	if (currentShareCode.value) {
+		uni.setClipboardData({
+			data: currentShareCode.value,
+			success: () => {
+				uni.showToast({
+					title: '分享码已复制',
+					icon: 'success'
+				})
+			},
+			fail: () => {
+				uni.showToast({
+					title: '复制失败',
+					icon: 'none'
+				})
+			}
+		})
+	}
+}
+
+// 从分享码还原图纸
+const restoreFromShareCodeData = (codeData) => {
+	const params = restoreFromShareCode(codeData)
+	
+	// 恢复所有参数
+	imagePath.value = params.imagePath
+	imageAspectRatio.value = params.imageAspectRatio
+	selectedBrand.value = params.brand
+	selectedBoardSize.value = params.boardSize
+	gridColumns.value = params.gridColumns
+	gridRows.value = params.gridRows
+	pixelationMode.value = params.pixelationMode
+	colorMergeThreshold.value = params.colorMergeThreshold
+	showBoard.value = params.showBoard
+	showColorCode.value = params.showColorCode
+	colorStats.value = params.colorData || []
+	
+	// 恢复导出配置
+	if (params.exportSettings) {
+		exportSettings.value = { ...exportSettings.value, ...params.exportSettings }
+	}
+	authorName.value = params.authorName
+	watermarkText.value = params.watermarkText
+	
+	// 重新生成图纸
+	regenerate()
+}
+
 const separateImagesOptions = [
 	{ id: "merge", name: "合并导出" },
 	{ id: "split", name: "分开导出" }
@@ -1848,7 +1969,16 @@ const processImage = async () => {
 		// 8. 绘制结果
 		drawPerlerResult(result, colorPalette, showColorCode.value)
 
-		// 9. 更新统计
+		// 9. 保存拼豆结果数据，用于高清导出
+		perlerResultData.value = {
+			mappedData: result.mappedData,
+			colorCounts: result.colorCounts,
+			totalBeads: result.totalBeads,
+			gridSize: result.gridSize,
+			colorPalette
+		}
+
+		// 10. 更新统计
 		colorStats.value = Object.entries(result.colorCounts).map(([key, data]) => ({
 			code: key,
 			hex: data.color,
@@ -2483,85 +2613,814 @@ const autoSelectBestBoard = () => {
 
 // 导出设置相关函数
 const showExportSettings = () => {
+	// 打开弹窗前，先加载本地存储的设置
+	const savedSettings = uni.getStorageSync('exportSettings')
+	if (savedSettings) {
+		exportSettings.value = { ...exportSettings.value, ...savedSettings }
+		authorName.value = savedSettings.authorName || ''
+		watermarkText.value = savedSettings.watermarkText || ''
+	}
+	
 	isSetting.value = true
 	showExportSettingsDialog.value = true
 }
 
 const toggleExportSettingsDialog = () => {
-	// 如果设置了记住选项且没有按住shift键，直接下载
+	// 如果设置了记住选项，直接下载
 	if (exportSettings.value.rememberSettings) {
 		performDownload()
 	} else {
+		// // 保存原始设置用于取消时还原
+		// originalExportSettings = JSON.parse(JSON.stringify(exportSettings.value))
+		// originalAuthorName = authorName.value
+		// originalWatermarkText = watermarkText.value
+		
+		isSetting.value = false
 		showExportSettingsDialog.value = true
 	}
 }
 
 const cancelExportSettings = () => {
-	if (isSetting.value) {
-		isSetting.value = false
-	}
+	isSetting.value = false
 	showExportSettingsDialog.value = false
 }
-const performDownload = () => {
-	// 设置模式下，直接保存设置
-	if (isSetting.value) {
-		showExportSettingsDialog.value = false
-		isSetting.value = false
-		return
-	}
-	// 保存设置
-	if (exportSettings.value.rememberSettings) {
-		uni.setStorageSync('exportSettings', exportSettings.value)
-	}
 
-	showExportSettingsDialog.value = false
+// ==================== 导出功能 ====================
 
-	uni.showLoading({
-		title: '生成中...'
+// 获取导出专用的Canvas实例
+const getExportCanvasInstance = () => {
+	return new Promise((resolve) => {
+		const query = uni.createSelectorQuery().in(getCurrentPages()[getCurrentPages().length - 1])
+		query.select('#exportCanvas')
+			.fields({ node: true, size: true })
+			.exec((res) => {
+				if (res && res.length > 0 && res[0] && res[0].node) {
+					const canvas = res[0].node
+					const ctx = canvas.getContext('2d')
+					const dpr = uni.getWindowInfo().pixelRatio || 2
+					resolve({
+						canvas,
+						ctx,
+						width: res[0].width,
+						height: res[0].height,
+						dpr
+					})
+				} else {
+					resolve(null)
+				}
+			})
+	})
+}
+
+// 计算导出布局尺寸
+const calculateExportLayout = async () => {
+	// 获取主Canvas的实际尺寸
+	const mainCanvasInfo = await new Promise((resolve) => {
+		const query = uni.createSelectorQuery().in(getCurrentPages()[getCurrentPages().length - 1])
+		query.select('#mainCanvas')
+			.fields({ node: true, size: true })
+			.exec((res) => {
+				if (res && res[0]) {
+					resolve(res[0])
+				} else {
+					resolve(null)
+				}
+			})
 	})
 
-	// 根据设置生成图片
-	setTimeout(() => {
-		// 简化的下载逻辑（实际应根据设置生成不同图片）
-		// 使用更高的分辨率导出，确保文字清晰
-		const exportScale = 3 // 增大导出倍数
+	if (!mainCanvasInfo || !mainCanvasInfo.width) {
+		console.error('无法获取主Canvas尺寸')
+		return null
+	}
+
+	const mainWidth = mainCanvasInfo.width
+	const mainHeight = mainCanvasInfo.height
+
+	// 计算颜色统计图尺寸
+	const statsHeight = Math.min(400, 60 + colorStats.value.length * 45)
+	const statsWidth = mainWidth
+
+	// 间距
+	const gap = 30
+
+	let layout = {
+		mainWidth,
+		mainHeight,
+		statsWidth,
+		statsHeight,
+		gap,
+		isMerge: exportSettings.value.separateImages === 'merge',
+		direction: exportSettings.value.layoutDirection
+	}
+
+	if (layout.isMerge) {
+		// 合并模式
+		if (layout.direction === 'vertical') {
+			// 纵向：图纸在上，颜色统计在下
+			layout.totalWidth = mainWidth + EXPORT_PADDING * 2
+			layout.totalHeight = mainHeight + statsHeight + gap + EXPORT_PADDING * 2
+			layout.mainX = EXPORT_PADDING
+			layout.mainY = EXPORT_PADDING
+			layout.statsX = EXPORT_PADDING
+			layout.statsY = mainHeight + gap + EXPORT_PADDING
+		} else {
+			// 横向：图纸在左，颜色统计在右
+			layout.totalWidth = mainWidth + statsWidth + gap + EXPORT_PADDING * 2
+			layout.totalHeight = Math.max(mainHeight, statsHeight) + EXPORT_PADDING * 2
+			layout.mainX = EXPORT_PADDING
+			layout.mainY = EXPORT_PADDING
+			layout.statsX = mainWidth + gap + EXPORT_PADDING
+			layout.statsY = EXPORT_PADDING
+		}
+	} else {
+		// 分开模式：两个独立的图片
+		layout.totalWidth = Math.max(mainWidth, statsWidth) + EXPORT_PADDING * 2
+		layout.totalHeight = mainHeight + statsHeight + EXPORT_PADDING * 2
+		layout.mainX = EXPORT_PADDING
+		layout.mainY = EXPORT_PADDING
+		layout.statsX = EXPORT_PADDING
+		layout.statsY = mainHeight + EXPORT_PADDING
+	}
+
+	// 添加阴影偏移量
+	if (exportSettings.value.addShadow) {
+		layout.shadowOffset = 15
+		layout.totalWidth += layout.shadowOffset * 2
+		layout.totalHeight += layout.shadowOffset * 2
+		layout.mainX += layout.shadowOffset
+		layout.mainY += layout.shadowOffset
+		layout.statsX += layout.shadowOffset
+		layout.statsY += layout.shadowOffset
+	}
+
+	// 分享码区域高度
+	if (exportSettings.value.addShareCode) {
+		layout.shareCodeAreaHeight = SHARE_CODE_SIZE + 30
+		layout.totalHeight += layout.shareCodeAreaHeight
+	}
+
+	return layout
+}
+
+// 绘制颜色统计图
+const drawColorStats = (ctx, x, y, width, scale) => {
+	const padding = 20 * scale
+	const lineHeight = 40 * scale
+	const swatchSize = 25 * scale
+	const fontSize = EXPORT_FONT_SIZE * scale
+
+	// 标题
+	ctx.font = `bold ${fontSize * 1.2}px sans-serif`
+	ctx.fillStyle = '#333'
+	ctx.fillText(`颜色统计 - ${colorStats.value.length}种颜色 / ${totalBeads.value}颗`, x + padding, y + fontSize * 1.5)
+	y += fontSize * 2
+
+	// 每行显示的颜色数量
+	const colorsPerRow = Math.floor((width - padding * 2) / (swatchSize * 5))
+	const actualColorsPerRow = Math.max(1, Math.min(colorsPerRow, colorStats.value.length))
+
+	for (let i = 0; i < colorStats.value.length; i++) {
+		const stat = colorStats.value[i]
+		const col = i % actualColorsPerRow
+		const row = Math.floor(i / actualColorsPerRow)
+
+		const itemX = x + padding + col * (swatchSize * 5)
+		const itemY = y + row * lineHeight
+
+		// 颜色色块
+		ctx.fillStyle = stat.hex
+		ctx.fillRect(itemX, itemY, swatchSize, swatchSize)
+
+		// 颜色名称和编号
+		ctx.font = `${fontSize * 0.8}px sans-serif`
+		ctx.fillStyle = '#666'
+		const nameText = stat.name || stat.code || `Color ${i + 1}`
+		const codeText = stat.code || ''
+		const countText = `${stat.count}颗`
+
+		ctx.fillText(nameText.substring(0, 8), itemX + swatchSize + 5 * scale, itemY + swatchSize * 0.6)
+		ctx.fillText(`${codeText} ${countText}`, itemX + swatchSize + 5 * scale, itemY + swatchSize)
+	}
+
+	return y + Math.ceil(colorStats.value.length / actualColorsPerRow) * lineHeight + padding
+}
+
+// 绘制水印
+const drawWatermark = (ctx, canvasWidth, canvasHeight, scale) => {
+	if (!exportSettings.value.addWatermark || !watermarkText.value) return
+
+	const fontSize = EXPORT_FONT_SIZE * scale * 1.5
+
+	if (exportSettings.value.watermarkType === 'oneCenter') {
+		// 单个居中水印
+		ctx.save()
+		ctx.globalAlpha = 0.15
+		ctx.font = `bold ${fontSize * 2}px sans-serif`
+		ctx.fillStyle = '#888'
+		ctx.textAlign = 'center'
+		ctx.textBaseline = 'middle'
+		ctx.fillText(watermarkText.value, canvasWidth / 2, canvasHeight / 2)
+		ctx.restore()
+	} else {
+		// 多列斜着循环文字
+		ctx.save()
+		ctx.globalAlpha = 0.1
+		ctx.font = `${fontSize}px sans-serif`
+		ctx.fillStyle = '#888'
+		ctx.textAlign = 'left'
+		ctx.textBaseline = 'top'
+
+		const spacing = 200 * scale
+		const rows = Math.ceil(canvasHeight / spacing) + 2
+		const cols = Math.ceil(canvasWidth / spacing) + 2
+
+		for (let r = 0; r < rows; r++) {
+			for (let c = 0; c < cols; c++) {
+				ctx.save()
+				ctx.translate(c * spacing + spacing / 2, r * spacing + spacing / 2)
+				ctx.rotate(-Math.PI / 6) // 旋转30度
+				ctx.fillText(watermarkText.value, 0, 0)
+				ctx.restore()
+			}
+		}
+		ctx.restore()
+	}
+}
+
+// 绘制作者名
+const drawAuthorName = (ctx, x, y, width, scale) => {
+	if (!exportSettings.value.showAuthor || !authorName.value) return
+
+	const fontSize = EXPORT_FONT_SIZE * scale
+
+	ctx.save()
+	ctx.font = `bold ${fontSize}px sans-serif`
+	ctx.fillStyle = '#333'
+	ctx.textAlign = 'right'
+	ctx.textBaseline = 'top'
+
+	// 绘制在图纸右上角
+	ctx.fillText(`@${authorName.value}`, x + width - 10 * scale, y + 10 * scale)
+	ctx.restore()
+}
+
+// 绘制分享码标识（包含二维码）
+const drawShareCode = (ctx, x, y, width, shareCode, scale) => {
+	if (!exportSettings.value.addShareCode || !shareCode) return
+
+	const fontSize = EXPORT_FONT_SIZE * scale
+	const qrSize = 120 * scale // 二维码尺寸
+
+	ctx.save()
+
+	// 分隔线
+	ctx.strokeStyle = '#ddd'
+	ctx.lineWidth = 1 * scale
+	ctx.beginPath()
+	ctx.moveTo(x + 20 * scale, y + 15 * scale)
+	ctx.lineTo(x + width - 20 * scale, y + 15 * scale)
+	ctx.stroke()
+
+	// 分享码文本（放在左侧）
+	const textX = x + 20 * scale
+	const textY = y + 15 * scale + qrSize / 2
+	ctx.font = `${fontSize * 0.9}px sans-serif`
+	ctx.fillStyle = '#333'
+	ctx.textAlign = 'left'
+	ctx.textBaseline = 'middle'
+	ctx.fillText(`分享码: ${shareCode.substring(0, 12)}...`, textX, textY)
+
+	// 使用说明
+	ctx.font = `${fontSize * 0.65}px sans-serif`
+	ctx.fillStyle = '#666'
+	ctx.fillText('请使用「趣拼豆」扫码导入', textX, textY + 25 * scale)
+
+	// 二维码区域（放在右侧）
+	const qrX = x + width - qrSize - 20 * scale
+	const qrY = y + 15 * scale + (qrSize - qrSize) / 2
+
+	// 创建并绘制二维码
+	try {
+		const qr = new UQRCode()
+		qr.data = shareCode
+		qr.size = qrSize
+		qr.backgroundColor = '#ffffff'
+		qr.foregroundColor = '#000000'
+		qr.make()
+
+		const moduleCount = qr.moduleCount
+		const cellSize = qrSize / moduleCount
+
+		// 绘制白色背景
+		ctx.fillStyle = '#ffffff'
+		ctx.fillRect(qrX - 5 * scale, qrY - 5 * scale, qrSize + 10 * scale, qrSize + 10 * scale)
+
+		// 绘制二维码（逐格子绘制）
+		for (let row = 0; row < moduleCount; row++) {
+			for (let col = 0; col < moduleCount; col++) {
+				if (qr.isBlack(row, col)) {
+					ctx.fillStyle = '#000000'
+					ctx.fillRect(
+						qrX + col * cellSize,
+						qrY + row * cellSize,
+						cellSize + 0.5, // 加0.5避免缝隙
+						cellSize + 0.5
+					)
+				}
+			}
+		}
+	} catch (err) {
+		console.error('生成二维码失败:', err)
+		// 回退：显示文字提示
+		ctx.fillStyle = '#f0f0f0'
+		ctx.fillRect(qrX - 5 * scale, qrY - 5 * scale, qrSize + 10 * scale, qrSize + 10 * scale)
+		ctx.font = `${fontSize * 0.5}px sans-serif`
+		ctx.fillStyle = '#999'
+		ctx.textAlign = 'center'
+		ctx.textBaseline = 'middle'
+		ctx.fillText('二维码生成失败', qrX + qrSize / 2, qrY + qrSize / 2)
+	}
+
+	ctx.restore()
+}
+
+// 完整的导出流程
+const performFullExport = async () => {
+	uni.showLoading({ title: '正在生成...' })
+
+	try {
+		// 1. 获取主Canvas图像
+		const mainImagePath = await new Promise((resolve, reject) => {
+			uni.canvasToTempFilePath({
+				canvas: mainCanvas,
+				fileType: 'png',
+				quality: 1,
+				success: (res) => resolve(res.tempFilePath),
+				fail: (err) => reject(err)
+			})
+		})
+
+		// 2. 生成分享码
+		let shareCode = ''
+		if (exportSettings.value.addShareCode) {
+			shareCode = generateCurrentShareCode() || ''
+		}
+
+		// 3. 计算布局
+		const layout = await calculateExportLayout()
+		if (!layout) {
+			throw new Error('无法计算导出布局')
+		}
+
+		// 4. 分开导出模式
+		if (!layout.isMerge) {
+			await performSeparateExport(mainImagePath, layout, shareCode)
+			return
+		}
+
+		// 5. 合并导出模式
+		await performMergeExport(mainImagePath, layout, shareCode)
+
+	} catch (error) {
+		console.error('导出失败:', error)
+		uni.hideLoading()
+		uni.showToast({ icon: 'none', title: '导出失败: ' + error.message })
+	}
+}
+
+// 合并导出
+const performMergeExport = async (mainImagePath, layout, shareCode) => {
+	// 获取导出Canvas
+	const exportCanvas = await getExportCanvasInstance()
+	if (!exportCanvas) {
+		throw new Error('无法获取导出画布')
+	}
+
+	// 设置导出Canvas尺寸
+	const canvasWidth = layout.totalWidth
+	const canvasHeight = layout.totalHeight
+	exportCanvas.canvas.width = canvasWidth
+	exportCanvas.canvas.height = canvasHeight
+	exportCanvas.ctx.scale(1, 1)
+
+	// 绘制阴影背景
+	if (exportSettings.value.addShadow) {
+		exportCanvas.ctx.save()
+		exportCanvas.ctx.shadowColor = 'rgba(0, 0, 0, 0.3)'
+		exportCanvas.ctx.shadowBlur = 30
+		exportCanvas.ctx.shadowOffsetX = 10
+		exportCanvas.ctx.shadowOffsetY = 10
+		exportCanvas.ctx.fillStyle = '#ffffff'
+		exportCanvas.ctx.fillRect(layout.shadowOffset, layout.shadowOffset,
+			canvasWidth - layout.shadowOffset * 2, canvasHeight - layout.shadowOffset * 2)
+		exportCanvas.ctx.restore()
+	}
+
+	// 绘制白色背景
+	exportCanvas.ctx.fillStyle = '#ffffff'
+	exportCanvas.ctx.fillRect(0, 0, canvasWidth, canvasHeight)
+
+	// ========== 高清绘制拼豆图纸（使用大格子尺寸） ==========
+	const { mappedData, gridSize } = perlerResultData.value || {}
+	if (mappedData && gridSize) {
+		// 使用更大的格子尺寸进行高清绘制（44px 是显示的 2 倍）
+		const hdCellSize = 44
+		const N = gridSize.N
+		const M = gridSize.M
+
+		// 计算图纸区域的实际尺寸
+		const hdWidth = N * hdCellSize
+		const hdHeight = M * hdCellSize
+
+		// 如果可用空间比高清绘制尺寸大，使用高清尺寸；否则使用布局尺寸
+		const availableWidth = layout.mainWidth - layout.shadowOffset * 2
+		const availableHeight = layout.mainHeight - layout.shadowOffset * 2
+
+		// 选择合适的绘制尺寸
+		let drawWidth, drawHeight, cellSize
+		if (hdWidth <= availableWidth && hdHeight <= availableHeight) {
+			// 可以使用高清尺寸
+			drawWidth = hdWidth
+			drawHeight = hdHeight
+			cellSize = hdCellSize
+		} else {
+			// 使用布局尺寸
+			drawWidth = availableWidth
+			drawHeight = availableHeight
+			cellSize = Math.min(drawWidth / N, drawHeight / M)
+		}
+
+		// 计算居中偏移
+		const offsetX = layout.mainX + layout.shadowOffset + (availableWidth - drawWidth) / 2
+		const offsetY = layout.mainY + layout.shadowOffset + (availableHeight - drawHeight) / 2
+
+		// 高清绘制拼豆格子
+		exportCanvas.ctx.save()
+
+		// 绘制每个格子
+		for (let y = 0; y < M; y++) {
+			for (let x = 0; x < N; x++) {
+				const pixel = mappedData[y]?.[x]
+				if (pixel && !pixel.isExternal && pixel.key !== 'TRANSPARENT') {
+					exportCanvas.ctx.fillStyle = pixel.color
+					exportCanvas.ctx.fillRect(
+						offsetX + x * cellSize,
+						offsetY + y * cellSize,
+						cellSize,
+						cellSize
+					)
+				}
+			}
+		}
+
+		// 绘制颜色 code（仅在格子足够大时）
+		if (cellSize >= 30 && showColorCode.value) {
+			const fontSize = Math.max(10, Math.min(16, cellSize * 0.4))
+
+			for (let y = 0; y < M; y++) {
+				for (let x = 0; x < N; x++) {
+					const pixel = mappedData[y]?.[x]
+					if (pixel && !pixel.isExternal && pixel.key !== 'TRANSPARENT') {
+						const centerX = offsetX + x * cellSize + cellSize / 2
+						const centerY = offsetY + y * cellSize + cellSize / 2
+
+						// 计算背景色亮度
+						const bgColor = pixel.color
+						const r = parseInt(bgColor.slice(1, 3), 16)
+						const g = parseInt(bgColor.slice(3, 5), 16)
+						const b = parseInt(bgColor.slice(5, 7), 16)
+						const brightness = (r * 299 + g * 587 + b * 114) / 1000
+						const textColor = brightness > 128 ? '#000000' : '#FFFFFF'
+
+						exportCanvas.ctx.fillStyle = textColor
+						exportCanvas.ctx.font = `bold ${fontSize}px system-ui, sans-serif`
+						exportCanvas.ctx.textAlign = 'center'
+						exportCanvas.ctx.textBaseline = 'middle'
+						exportCanvas.ctx.fillText(pixel.key, centerX, centerY)
+					}
+				}
+			}
+		}
+
+		exportCanvas.ctx.restore()
+	} else {
+		// 回退：使用原有方式绘制
+		const mainImage = await new Promise((resolve, reject) => {
+			const img = exportCanvas.canvas.createImage()
+			img.onload = () => resolve(img)
+			img.onerror = reject
+			img.src = mainImagePath
+		})
+		exportCanvas.ctx.drawImage(mainImage, layout.mainX, layout.mainY, layout.mainWidth, layout.mainHeight)
+	}
+
+	// 绘制作者名
+	drawAuthorName(exportCanvas.ctx, layout.mainX + layout.shadowOffset, layout.mainY + layout.shadowOffset, layout.mainWidth - layout.shadowOffset * 2, 1)
+
+	// 绘制颜色统计图
+	if (colorStats.value.length > 0) {
+		const actualStatsY = layout.direction === 'horizontal'
+			? layout.statsY + (Math.max(layout.mainHeight, layout.statsHeight) - layout.statsHeight) / 2
+			: layout.statsY
+		const actualStatsWidth = layout.direction === 'horizontal'
+			? layout.statsWidth
+			: layout.statsWidth
+
+		drawColorStats(exportCanvas.ctx, layout.statsX, actualStatsY, actualStatsWidth, 1)
+	}
+
+	// 绘制分享码（合并模式，绘制在底部）
+	if (shareCode) {
+		drawShareCode(exportCanvas.ctx, 0, canvasHeight - SHARE_CODE_SIZE - 30, canvasWidth, shareCode, 1)
+	}
+
+	// 绘制水印（最后绘制，覆盖在最上层）
+	drawWatermark(exportCanvas.ctx, canvasWidth, canvasHeight, 1)
+
+	// 导出图片
+	const finalImagePath = await new Promise((resolve, reject) => {
 		uni.canvasToTempFilePath({
-			canvas: mainCanvas,
-			width: CANVAS_SIZE,
-			height: CANVAS_SIZE,
-			destWidth: CANVAS_SIZE * exportScale,
-			destHeight: CANVAS_SIZE * exportScale,
+			canvas: exportCanvas.canvas,
 			fileType: 'png',
 			quality: 1,
-			success: (res) => {
-				uni.saveImageToPhotosAlbum({
-					filePath: res.tempFilePath,
-					success: () => {
-						uni.hideLoading()
-						uni.showModal({
-							title: '成功',
-							content: '图纸已保存到相册',
-							showCancel: false
-						})
-					},
-					fail: () => {
-						uni.hideLoading()
-						uni.showToast({
-							icon: 'none',
-							title: '保存失败'
-						})
+			destWidth: canvasWidth * EXPORT_SCALE,
+			destHeight: canvasHeight * EXPORT_SCALE,
+			success: (res) => resolve(res.tempFilePath),
+			fail: (err) => reject(err)
+		})
+	})
+
+	// 保存到相册
+	await saveToAlbum(finalImagePath, shareCode)
+}
+
+// 分开导出
+const performSeparateExport = async (mainImagePath, layout, shareCode) => {
+	// ========== 第一张：图纸 ==========
+	const exportCanvas1 = await getExportCanvasInstance()
+	if (!exportCanvas1) {
+		throw new Error('无法获取导出画布')
+	}
+
+	// 图纸尺寸
+	const paperWidth = layout.mainWidth + EXPORT_PADDING * 2
+	const paperHeight = layout.mainHeight + EXPORT_PADDING * 2 + (exportSettings.value.addShadow ? 30 : 0)
+
+	exportCanvas1.canvas.width = paperWidth
+	exportCanvas1.canvas.height = paperHeight
+
+	// 绘制阴影
+	if (exportSettings.value.addShadow) {
+		exportCanvas1.ctx.save()
+		exportCanvas1.ctx.shadowColor = 'rgba(0, 0, 0, 0.3)'
+		exportCanvas1.ctx.shadowBlur = 30
+		exportCanvas1.ctx.shadowOffsetX = 10
+		exportCanvas1.ctx.shadowOffsetY = 10
+		exportCanvas1.ctx.fillStyle = '#ffffff'
+		exportCanvas1.ctx.fillRect(0, 0, paperWidth, paperHeight)
+		exportCanvas1.ctx.restore()
+	}
+
+	// 白色背景
+	exportCanvas1.ctx.fillStyle = '#ffffff'
+	exportCanvas1.ctx.fillRect(0, 0, paperWidth, paperHeight)
+
+	// ========== 高清绘制拼豆图纸 ==========
+	const { mappedData, gridSize } = perlerResultData.value || {}
+	if (mappedData && gridSize) {
+		const hdCellSize = 44
+		const N = gridSize.N
+		const M = gridSize.M
+
+		const hdWidth = N * hdCellSize
+		const hdHeight = M * hdCellSize
+
+		const availableWidth = layout.mainWidth
+		const availableHeight = layout.mainHeight
+
+		let drawWidth, drawHeight, cellSize
+		if (hdWidth <= availableWidth && hdHeight <= availableHeight) {
+			drawWidth = hdWidth
+			drawHeight = hdHeight
+			cellSize = hdCellSize
+		} else {
+			drawWidth = availableWidth
+			drawHeight = availableHeight
+			cellSize = Math.min(drawWidth / N, drawHeight / M)
+		}
+
+		const offsetX = EXPORT_PADDING + (availableWidth - drawWidth) / 2
+		const offsetY = EXPORT_PADDING + (availableHeight - drawHeight) / 2
+
+		exportCanvas1.ctx.save()
+
+		for (let y = 0; y < M; y++) {
+			for (let x = 0; x < N; x++) {
+				const pixel = mappedData[y]?.[x]
+				if (pixel && !pixel.isExternal && pixel.key !== 'TRANSPARENT') {
+					exportCanvas1.ctx.fillStyle = pixel.color
+					exportCanvas1.ctx.fillRect(
+						offsetX + x * cellSize,
+						offsetY + y * cellSize,
+						cellSize,
+						cellSize
+					)
+				}
+			}
+		}
+
+		// 绘制颜色 code
+		if (cellSize >= 30 && showColorCode.value) {
+			const fontSize = Math.max(10, Math.min(16, cellSize * 0.4))
+
+			for (let y = 0; y < M; y++) {
+				for (let x = 0; x < N; x++) {
+					const pixel = mappedData[y]?.[x]
+					if (pixel && !pixel.isExternal && pixel.key !== 'TRANSPARENT') {
+						const centerX = offsetX + x * cellSize + cellSize / 2
+						const centerY = offsetY + y * cellSize + cellSize / 2
+
+						const bgColor = pixel.color
+						const r = parseInt(bgColor.slice(1, 3), 16)
+						const g = parseInt(bgColor.slice(3, 5), 16)
+						const b = parseInt(bgColor.slice(5, 7), 16)
+						const brightness = (r * 299 + g * 587 + b * 114) / 1000
+						const textColor = brightness > 128 ? '#000000' : '#FFFFFF'
+
+						exportCanvas1.ctx.fillStyle = textColor
+						exportCanvas1.ctx.font = `bold ${fontSize}px system-ui, sans-serif`
+						exportCanvas1.ctx.textAlign = 'center'
+						exportCanvas1.ctx.textBaseline = 'middle'
+						exportCanvas1.ctx.fillText(pixel.key, centerX, centerY)
+					}
+				}
+			}
+		}
+
+		exportCanvas1.ctx.restore()
+	} else {
+		// 回退：使用原有方式
+		const mainImage = await new Promise((resolve, reject) => {
+			const img = exportCanvas1.canvas.createImage()
+			img.onload = () => resolve(img)
+			img.onerror = reject
+			img.src = mainImagePath
+		})
+		exportCanvas1.ctx.drawImage(mainImage, EXPORT_PADDING, EXPORT_PADDING, layout.mainWidth, layout.mainHeight)
+	}
+
+	// 绘制作者名
+	drawAuthorName(exportCanvas1.ctx, EXPORT_PADDING, EXPORT_PADDING, layout.mainWidth, 1)
+
+	// 绘制水印
+	drawWatermark(exportCanvas1.ctx, paperWidth, paperHeight, 1)
+
+	// 导出图纸
+	const paperPath = await new Promise((resolve, reject) => {
+		uni.canvasToTempFilePath({
+			canvas: exportCanvas1.canvas,
+			fileType: 'png',
+			quality: 1,
+			destWidth: paperWidth * EXPORT_SCALE,
+			destHeight: paperHeight * EXPORT_SCALE,
+			success: (res) => resolve(res.tempFilePath),
+			fail: (err) => reject(err)
+		})
+	})
+
+	// 保存图纸
+	await new Promise((resolve) => {
+		uni.saveImageToPhotosAlbum({
+			filePath: paperPath,
+			success: resolve,
+			fail: resolve
+		})
+	})
+
+	// ========== 第二张：颜色统计图 ==========
+	if (colorStats.value.length > 0) {
+		const exportCanvas2 = await getExportCanvasInstance()
+		if (!exportCanvas2) {
+			throw new Error('无法获取导出画布')
+		}
+
+		const statsHeight = Math.min(400, 60 + colorStats.value.length * 45) + EXPORT_PADDING * 2 + 30
+		const statsWidth = layout.statsWidth + EXPORT_PADDING * 2
+
+		exportCanvas2.canvas.width = statsWidth
+		exportCanvas2.canvas.height = statsHeight
+
+		// 绘制阴影
+		if (exportSettings.value.addShadow) {
+			exportCanvas2.ctx.save()
+			exportCanvas2.ctx.shadowColor = 'rgba(0, 0, 0, 0.3)'
+			exportCanvas2.ctx.shadowBlur = 30
+			exportCanvas2.ctx.shadowOffsetX = 10
+			exportCanvas2.ctx.shadowOffsetY = 10
+			exportCanvas2.ctx.fillStyle = '#ffffff'
+			exportCanvas2.ctx.fillRect(0, 0, statsWidth, statsHeight)
+			exportCanvas2.ctx.restore()
+		}
+
+		// 白色背景
+		exportCanvas2.ctx.fillStyle = '#ffffff'
+		exportCanvas2.ctx.fillRect(0, 0, statsWidth, statsHeight)
+
+		// 绘制颜色统计图
+		drawColorStats(exportCanvas2.ctx, EXPORT_PADDING, EXPORT_PADDING, layout.statsWidth, 1)
+
+		// 导出统计图
+		const statsPath = await new Promise((resolve, reject) => {
+			uni.canvasToTempFilePath({
+				canvas: exportCanvas2.canvas,
+				fileType: 'png',
+				quality: 1,
+				destWidth: statsWidth * EXPORT_SCALE,
+				destHeight: statsHeight * EXPORT_SCALE,
+				success: (res) => resolve(res.tempFilePath),
+				fail: (err) => reject(err)
+			})
+		})
+
+		// 保存统计图
+		await new Promise((resolve) => {
+			uni.saveImageToPhotosAlbum({
+				filePath: statsPath,
+				success: resolve,
+				fail: resolve
+			})
+		})
+	}
+
+	// 完成提示
+	uni.hideLoading()
+	uni.showModal({
+		title: '导出成功',
+		content: shareCode
+			? `图纸和颜色统计图已保存到相册\n\n分享码: ${shareCode.substring(0, 16)}...`
+			: '图纸和颜色统计图已保存到相册',
+		confirmText: shareCode ? '复制分享码' : '完成',
+		cancelText: shareCode ? '完成' : null,
+		success: (res) => {
+			if (res.confirm && shareCode) {
+				copyShareCode()
+			}
+		}
+	})
+}
+
+// 保存到相册并显示提示
+const saveToAlbum = (filePath, shareCode) => {
+	return new Promise((resolve) => {
+		uni.saveImageToPhotosAlbum({
+			filePath,
+			success: () => {
+				uni.hideLoading()
+				uni.showModal({
+					title: '导出成功',
+					content: shareCode
+						? `图纸已保存到相册\n\n分享码: ${shareCode.substring(0, 16)}...`
+						: '图纸已保存到相册',
+					confirmText: shareCode ? '复制分享码' : '完成',
+					cancelText: shareCode ? '完成' : null,
+					success: (res) => {
+						if (res.confirm && shareCode) {
+							copyShareCode()
+						}
+						resolve()
 					}
 				})
 			},
 			fail: () => {
 				uni.hideLoading()
-				uni.showToast({
-					icon: 'none',
-					title: '生成失败'
-				})
+				uni.showToast({ icon: 'none', title: '保存失败' })
+				resolve()
 			}
 		})
-	}, 100)
+	})
+}
+
+// 重写的 performDownload
+const performDownload = () => {
+	// 保存设置到本地存储
+	const settingsToSave = {
+		...exportSettings.value,
+		authorName: authorName.value,
+		watermarkText: watermarkText.value
+	}
+	uni.setStorageSync('exportSettings', settingsToSave)
+
+	// 设置模式下，保存设置并关闭弹窗，不执行导出
+	if (isSetting.value) {
+		showExportSettingsDialog.value = false
+		isSetting.value = false
+		return
+	}
+
+	showExportSettingsDialog.value = false
+
+	// 执行完整导出
+	performFullExport()
 }
 
 // 高清下载功能（修复作用域报错+放大模糊）
@@ -2576,6 +3435,22 @@ const downloadImage = () => {
 }
 
 onLoad(async (options) => {
+	// 检查是否是分享码导入
+	if (options.shareCode) {
+		const result = decodeShareCode(options.shareCode)
+		if (result.valid) {
+			restoreFromShareCodeData(result.data)
+			console.log('从分享码还原图纸成功')
+		} else {
+			uni.showToast({
+				title: result.error || '分享码无效',
+				icon: 'none'
+			})
+		}
+		return
+	}
+
+	// 普通参数加载
 	imagePath.value = JSON.parse(decodeURIComponent(options.image)) || ''
 	selectedBrand.value = options.brand || 'mard'
 	selectedSize.value = parseInt(options.size) || 29
@@ -3639,6 +4514,21 @@ onMounted(() => {
 	left: -9999rpx;
 	width: 1rpx;
 	height: 1rpx;
+}
+
+/* 二维码Canvas */
+.qr-canvas {
+	position: fixed;
+	left: -9999rpx;
+	width: 150px;
+	height: 150px;
+}
+
+/* 导出专用Canvas */
+.export-canvas {
+	position: fixed;
+	left: -9999rpx;
+	top: -9999rpx;
 }
 
 /* 导出设置弹框 */
