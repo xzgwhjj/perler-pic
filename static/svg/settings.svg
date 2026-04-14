@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="none"
+	data-fg-otk263="1.33:70.13055:/src/app/pages/Generate.tsx:837:5:29900:1042:e:svg:etetetetetetetete:1"
+	data-fgid-otk263=":r37:" data-fg-callsite-otk10="" stroke="#101828">
+	<circle cx="10" cy="10" r="3" stroke="currentColor" stroke-width="1.2"
+		data-fg-otk264="1.33:70.13055:/src/app/pages/Generate.tsx:838:7:29967:72:e:circle"></circle>
+	<line x1="10" y1="2" x2="10" y2="4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"
+		data-fg-otk265="1.33:70.13055:/src/app/pages/Generate.tsx:839:7:30046:100:e:line"></line>
+	<line x1="10" y1="16" x2="10" y2="18" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"
+		data-fg-otk266="1.33:70.13055:/src/app/pages/Generate.tsx:840:7:30153:102:e:line"></line>
+	<line x1="18" y1="10" x2="16" y2="10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"
+		data-fg-otk267="1.33:70.13055:/src/app/pages/Generate.tsx:841:7:30262:102:e:line"></line>
+	<line x1="4" y1="10" x2="2" y2="10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"
+		data-fg-otk268="1.33:70.13055:/src/app/pages/Generate.tsx:842:7:30371:100:e:line"></line>
+	<line x1="15.5" y1="4.5" x2="14.1" y2="5.9" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"
+		data-fg-otk269="1.33:70.13055:/src/app/pages/Generate.tsx:843:7:30478:108:e:line"></line>
+	<line x1="5.9" y1="14.1" x2="4.5" y2="15.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"
+		data-fg-otk270="1.33:70.13055:/src/app/pages/Generate.tsx:844:7:30593:108:e:line"></line>
+	<line x1="15.5" y1="15.5" x2="14.1" y2="14.1" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"
+		data-fg-otk271="1.33:70.13055:/src/app/pages/Generate.tsx:845:7:30708:110:e:line"></line>
+	<line x1="5.9" y1="5.9" x2="4.5" y2="4.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"
+		data-fg-otk272="1.33:70.13055:/src/app/pages/Generate.tsx:846:7:30825:106:e:line"></line>
+</svg>

@@ -5,6 +5,15 @@
       <text class="section-header">拼豆图转换</text>
       <text class="section-text">将图片转换为拼豆图纸</text>
     </view>
+    <!-- 分享导入码 -->
+    <view class="upload-share-row">
+      <text class="upload-text">上传图片</text>
+      <view class="share-code-box" @click="onShareCodeClick">
+        <image src="/static/svg/qrcode.svg" class="share-icon" mode="aspectFit" />
+        <text class="share-btn-text">导入分享码</text>
+      </view>
+    </view>
+
     <!-- 上传区域 -->
     <view class="upload-section">
       <view class="upload-box" @click="chooseImage">
@@ -234,6 +243,15 @@ const removeImage = () => {
   selectedImage.value = "";
 };
 
+// 图片导入码点击事件
+const onShareCodeClick = () => {
+  uni.showModal({
+    title: '敬请期待',
+    content: '图片导入码功能即将上线',
+    showCancel: false
+  });
+};
+
 // 高级选项相关数据
 const showAdvancedPicker = ref(false);
 const colorMergeThreshold = ref(30);
@@ -319,6 +337,15 @@ const startGenerate = () => {
   margin-bottom: var(--space-md);
 }
 
+/* 上传 + 分享码行 */
+.upload-share-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  margin-bottom: var(--space-md);
+}
+
 /* 上传区域 */
 .upload-section {
   margin-bottom: var(--space-xl);
@@ -340,6 +367,41 @@ const startGenerate = () => {
     border-color: var(--accent-primary);
     background: var(--accent-light);
   }
+}
+
+.upload-text {
+  font-size: 30rpx;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+/* 分享导入码按钮 */
+.share-code-box {
+  height: 64rpx;
+  padding-inline: 24rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12rpx;
+  border-radius: 20rpx;
+  background: #bedbff33;
+
+  &:active {
+    border-color: var(--accent-primary);
+    background: var(--accent-light);
+  }
+}
+
+.share-icon {
+  width: 32rpx;
+  height: 32rpx;
+}
+
+.share-btn-text {
+  font-size: var(--font-size-sm);
+  color: var(--accent-primary);
+  text-align: center;
+  font-weight: 500;
 }
 
 .upload-placeholder {

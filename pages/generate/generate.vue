@@ -1,8 +1,9 @@
 <template>
 	<view class="page-container" :class="{ 'no-scroll': isFullscreen }">
 		<!-- 全屏遮罩：完全阻止任何操作穿透 -->
-		<view v-if="isFullscreen" class="fullscreen-overlay" @touchstart.prevent @touchmove.prevent @touchend.prevent @click.prevent></view>
-		
+		<view v-if="isFullscreen || showExportSettingsDialog" class="fullscreen-overlay" @touchstart.prevent
+			@touchmove.prevent @touchend.prevent @click.prevent></view>
+
 		<!-- 恢复浮窗按钮 -->
 		<view v-if="isFloatingMinimized && !showExportSettingsDialog" class="floating-restore-btn"
 			@click="restoreFloatingWindow">
@@ -300,44 +301,39 @@
 				<scroll-view class="export-settings-content" scroll-y>
 					<!-- 导出方式 -->
 					<view class="export-option-group">
-						<text class="group-title">导出方式</text>
+						<text class="group-title">导出模式</text>
 						<view class="radio-group">
-							<view class="radio-item" @click="exportSettings.separateImages = false">
-								<view class="radio" :class="{ 'radio-checked': !exportSettings.separateImages }"></view>
-								<text>合并导出</text>
-							</view>
-							<view class="radio-item" @click="exportSettings.separateImages = true">
-								<view class="radio" :class="{ 'radio-checked': exportSettings.separateImages }"></view>
-								<text>分开导出</text>
+							<view v-for="mode in separateImagesOptions" :key="mode.id" class="radio-item"
+								:class="{ active: exportSettings.separateImages === mode.id }"
+								@click="exportSettings.separateImages = mode.id">
+								<text class="mode-name">{{ mode.name }}</text>
 							</view>
 						</view>
 					</view>
 
 					<!-- 合并方向 -->
-					<view class="export-option-group" v-if="!exportSettings.separateImages">
-						<text class="group-title">合并方向</text>
+					<view class="export-option-group" v-if="exportSettings.separateImages === 'merge'">
+						<text class="group-title">拼接方向</text>
 						<view class="radio-group">
-							<view class="radio-item" @click="exportSettings.layoutDirection = 'vertical'">
-								<view class="radio"
-									:class="{ 'radio-checked': exportSettings.layoutDirection === 'vertical' }">
-								</view>
-								<text>纵向排列</text>
-							</view>
-							<view class="radio-item" @click="exportSettings.layoutDirection = 'horizontal'">
-								<view class="radio"
-									:class="{ 'radio-checked': exportSettings.layoutDirection === 'horizontal' }">
-								</view>
-								<text>横向排列</text>
+							<view v-for="lmode in layoutDirectionOptions" :key="lmode.id" class="radio-item"
+								:class="{ active: exportSettings.layoutDirection === lmode.id }"
+								@click="exportSettings.layoutDirection = lmode.id">
+								<image
+									:src="exportSettings.layoutDirection === lmode.id ? '/static/svg/vertical2-selected.svg' : '/static/svg/vertical2.svg'"
+									class="icon" :class="{ 'horizontal': lmode.id === 'horizontal' }" />
+								<text class="mode-name">{{ lmode.name }}</text>
 							</view>
 						</view>
 					</view>
 
 					<!-- 作者名 -->
 					<view class="export-option-group">
-						<text class="group-title">作者信息</text>
-						<view class="checkbox-item" @click="exportSettings.showAuthor = !exportSettings.showAuthor">
-							<view class="checkbox" :class="{ 'checkbox-checked': exportSettings.showAuthor }"></view>
-							<text>添加作者名</text>
+						<view class="show-item">
+							<text class="group-title">添加作者名</text>
+							<view class="switch-container">
+								<switch :checked="exportSettings.showAuthor" @change="onShowAuthorChange"
+									color="#bedbff" style="transform:scale(0.8)" />
+							</view>
 						</view>
 						<view class="author-input-container" v-if="exportSettings.showAuthor">
 							<input class="author-input" type="text" v-model="authorName" placeholder="请输入作者名" />
@@ -346,24 +342,50 @@
 
 					<!-- 水印 -->
 					<view class="export-option-group">
-						<text class="group-title">水印设置</text>
-						<view class="checkbox-item" @click="exportSettings.addWatermark = !exportSettings.addWatermark">
-							<view class="checkbox" :class="{ 'checkbox-checked': exportSettings.addWatermark }"></view>
-							<text>添加水印</text>
+						<view class="show-item">
+							<text class="group-title">添加水印</text>
+							<view class="switch-container">
+								<switch :checked="exportSettings.addWatermark" @change="onAddWatermarkChange"
+									color="#bedbff" style="transform:scale(0.8)" />
+							</view>
+						</view>
+						<view class="radio-group" v-if="exportSettings.addWatermark">
+							<view v-for="wmode in watermarkOptions" :key="wmode.id" class="radio-item"
+								:class="{ active: exportSettings.watermarkType === wmode.id }"
+								@click="exportSettings.watermarkType = wmode.id">
+								<text class="mode-name">{{ wmode.name }}</text>
+							</view>
+						</view>
+						<view style="margin-top: 24rpx;" class="author-input-container"
+							v-if="exportSettings.addWatermark">
+							<input class="author-input" type="text" v-model="watermarkText" placeholder="请输入水印文本" />
 						</view>
 					</view>
 
 					<!-- 阴影 -->
 					<view class="export-option-group">
-						<text class="group-title">样式效果</text>
-						<view class="checkbox-item" @click="exportSettings.addShadow = !exportSettings.addShadow">
-							<view class="checkbox" :class="{ 'checkbox-checked': exportSettings.addShadow }"></view>
-							<text>添加阴影效果</text>
+						<view class="show-item">
+							<text class="group-title">添加阴影</text>
+							<view class="switch-container">
+								<switch :checked="exportSettings.addShadow" @change="onAddShadowChange" color="#bedbff"
+									style="transform:scale(0.8)" />
+							</view>
+						</view>
+					</view>
+
+					<!-- 分享码 -->
+					<view class="export-option-group">
+						<view class="show-item">
+							<text class="group-title">添加分享码</text>
+							<view class="switch-container">
+								<switch :checked="exportSettings.addShareCode" @change="onAddShareCodeChange"
+									color="#bedbff" style="transform:scale(0.8)" />
+							</view>
 						</view>
 					</view>
 
 					<!-- 记住设置 -->
-					<view class="export-option-group">
+					<view class="export-option-group remember-settings" v-if="!isSetting">
 						<view class="checkbox-item"
 							@click="exportSettings.rememberSettings = !exportSettings.rememberSettings">
 							<view class="checkbox" :class="{ 'checkbox-checked': exportSettings.rememberSettings }">
@@ -373,8 +395,9 @@
 					</view>
 				</scroll-view>
 				<view class="export-settings-footer">
-					<button class="export-btn secondary" @click="showExportSettingsDialog = false">取消</button>
-					<button class="export-btn primary" @click="performDownload">确定导出</button>
+					<button class="export-btn secondary" @click="cancelExportSettings">取消</button>
+					<button class="export-btn primary" @click="performDownload">{{ isSetting ? '保存设置' : '确定导出'
+					}}</button>
 				</view>
 			</view>
 		</view>
@@ -507,15 +530,49 @@ const lastResizeY = ref(0)
 
 // 导出设置
 const showExportSettingsDialog = ref(false)
+const isSetting = ref(false) // 是否点击设置
 const authorName = ref('') // 作者名
+const watermarkText = ref('') // 水印文本
 const exportSettings = ref({
-	separateImages: false, // 是否分开导出图纸和颜色统计
+	separateImages: "merge", // 是否分开导出图纸和颜色统计
 	layoutDirection: 'vertical', // 拼接方向: vertical/horizontal
 	showAuthor: false, // 是否显示作者名
-	addWatermark: true, // 是否添加水印
-	addShadow: true, // 是否添加阴影
+	addWatermark: false, // 是否添加水印
+	watermarkType: 'fullRepeat', // 水印
+	addShadow: false, // 是否添加阴影
+	addShareCode: true, // 是否添加分享码
 	rememberSettings: false // 记住设置，下次不再弹框
 })
+const separateImagesOptions = [
+	{ id: "merge", name: "合并导出" },
+	{ id: "split", name: "分开导出" }
+];
+
+const layoutDirectionOptions = [
+	{ id: 'vertical', name: '纵向' },
+	{ id: 'horizontal', name: '横向' }
+];
+
+const watermarkOptions = [
+	{ id: 'oneCenter', name: '单个居中' },
+	{ id: 'fullRepeat', name: '多列重复' }
+];
+
+const onShowAuthorChange = (e) => {
+	exportSettings.value.showAuthor = e.detail.value;
+};
+
+const onAddWatermarkChange = (e) => {
+	exportSettings.value.addWatermark = e.detail.value;
+}
+
+const onAddShadowChange = (e) => {
+	exportSettings.value.addShadow = e.detail.value;
+}
+
+const onAddShareCodeChange = (e) => {
+	exportSettings.value.addShareCode = e.detail.value;
+}
 
 // 恢复浮窗
 const restoreFloatingWindow = () => {
@@ -2426,6 +2483,7 @@ const autoSelectBestBoard = () => {
 
 // 导出设置相关函数
 const showExportSettings = () => {
+	isSetting.value = true
 	showExportSettingsDialog.value = true
 }
 
@@ -2438,7 +2496,19 @@ const toggleExportSettingsDialog = () => {
 	}
 }
 
+const cancelExportSettings = () => {
+	if (isSetting.value) {
+		isSetting.value = false
+	}
+	showExportSettingsDialog.value = false
+}
 const performDownload = () => {
+	// 设置模式下，直接保存设置
+	if (isSetting.value) {
+		showExportSettingsDialog.value = false
+		isSetting.value = false
+		return
+	}
 	// 保存设置
 	if (exportSettings.value.rememberSettings) {
 		uni.setStorageSync('exportSettings', exportSettings.value)
@@ -3634,6 +3704,7 @@ onMounted(() => {
 	background: #ffffff;
 	padding: 32rpx;
 	overflow-y: auto;
+	box-sizing: border-box;
 }
 
 .export-settings-footer {
@@ -3642,7 +3713,7 @@ onMounted(() => {
 	padding: 32rpx;
 	display: flex;
 	gap: 24rpx;
-	border-top: 1rpx solid #f0f0f0;
+	// border-top: 1rpx solid #f0f0f0;
 }
 
 .export-btn {
@@ -3676,36 +3747,75 @@ onMounted(() => {
 	}
 }
 
-.group-title {
-	font-size: 28rpx;
-	font-weight: 600;
-	color: #1a1a2e;
+.remember-settings {
+	border-top: 2rpx solid var(--border-medium);
+}
+
+.show-item {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
 	margin-bottom: 24rpx;
-	display: block;
+
+	.group-title {
+		margin-bottom: 0;
+	}
+}
+
+.group-title {
+	font-weight: 500;
+	margin-bottom: 24rpx;
+	font-size: var(--text-base);
+	color: var(--text-primary);
+}
+
+.switch-container {
+	display: flex;
+	align-items: center;
 }
 
 .radio-group {
-	display: flex;
-	flex-direction: column;
-	gap: 24rpx;
+	gap: 16rpx;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	display: grid;
 }
 
 .radio-item {
+	padding: var(--space-sm) var(--space-lg);
+	// background: var(--bg-secondary);
+	transition: all 0.3s ease;
+	font-weight: 500;
+	font-size: 26rpx;
+	border: 2rpx solid var(--border-medium);
+	border-radius: 20rpx;
+	color: var(--text-tertiary);
+	text-align: center;
+	box-sizing: border-box;
+	gap: 16rpx;
 	display: flex;
 	align-items: center;
-	gap: 20rpx;
-	cursor: pointer;
-	padding: 16rpx;
-	border-radius: 12rpx;
-	transition: background 0.2s;
+	justify-content: center;
 
-	&:active {
-		background: #f5f5f5;
+	&.active {
+		color: #ffffff;
+		background: var(--text-primary);
+		border-color: var(--text-primary);
 	}
 
+	.icon {
+		width: 32rpx;
+		height: 32rpx;
+
+		&.horizontal {
+			transform: rotate(90deg);
+		}
+	}
+
+
+
 	text {
-		font-size: 26rpx;
-		color: #333;
+		font-size: var(--text-base);
+		font-weight: 500;
 	}
 }
 
@@ -3740,7 +3850,7 @@ onMounted(() => {
 	align-items: center;
 	gap: 20rpx;
 	cursor: pointer;
-	padding: 16rpx;
+	padding-top: 24rpx;
 	border-radius: 12rpx;
 	transition: background 0.2s;
 	margin-bottom: 24rpx;
@@ -3786,7 +3896,8 @@ onMounted(() => {
 
 .author-input-container {
 	margin-top: 16rpx;
-	padding-left: 56rpx;
+	display: flex;
+	justify-content: center;
 }
 
 .author-input {
