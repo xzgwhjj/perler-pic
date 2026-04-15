@@ -1,358 +1,323 @@
 <template>
-  <view class="page-container">
-    <scroll-view class="main-content" scroll-y>
-      <!-- 用户信息卡片 -->
-      <view class="user-section">
-        <view v-if="userInfo" class="user-card card">
-          <view class="user-avatar">
-            <text class="avatar-text">{{ userInfo.nickName ? userInfo.nickName[0] : '我' }}</text>
-          </view>
-          <view class="user-info">
-            <text class="user-name">{{ userInfo.nickName || '未登录' }}</text>
-            <text class="user-id">ID: {{ userInfo.userId || '----' }}</text>
-          </view>
-          <button class="logout-btn" @click="handleLogout">退出</button>
-        </view>
-        <button v-else class="login-card card" @click="handleLogin">
-          <text class="login-text">微信登录</text>
-        </button>
-      </view>
+	<view class="page-container">
+		<view class="my-page">
+			<!-- 登录卡片区域 -->
+			<view class="login-card">
+				<!-- 未登录状态 -->
+				<view v-if="true" class="unlogged">
+					<view class="avatar-placeholder">
+						<image src="/static/svg/avatar.svg" class="avatar" mode="aspectFit"></image>
+					</view>
+					<text class="login-tip">登录后查看更多功能</text>
+					<button class="login-btn" @click="handleWxLogin">微信登录</button>
+				</view>
+				<view v-else>
+					<text class="login-tip">已登录</text>
+				</view>
+			</view>
 
-      <!-- 统计数据 -->
-      <view v-if="userInfo" class="stats-section">
-        <view class="stats-grid">
-          <view class="stat-item">
-            <text class="stat-value">{{ stats.total }}</text>
-            <text class="stat-label">转换</text>
-          </view>
-          <view class="stat-item">
-            <text class="stat-value">{{ stats.saved }}</text>
-            <text class="stat-label">保存</text>
-          </view>
-          <view class="stat-item">
-            <text class="stat-value">{{ stats.days }}</text>
-            <text class="stat-label">天数</text>
-          </view>
-        </view>
-      </view>
+			<!-- 功能列表区域 -->
+			<view class="func-list">
+				<view class="func-items">
+					<!-- 历史记录 -->
+					<view class="func-item" @click="handleToHistory">
+						<image src="/static/svg/history.svg" class="item-icon" mode="aspectFit"></image>
+						<text class="item-text">历史记录</text>
+						<view class="item-badge">24</view>
+						<image src="/static/svg/arrow4.svg" class="arrow-icon" mode="aspectFit"></image>
+					</view>
 
-      <!-- 功能列表 -->
-      <view class="function-section">
-        <view class="function-list">
-          <view class="list-item card" @click="handleFollow">
-            <view class="item-left">
-              <text class="item-icon">♡</text>
-              <text class="item-title">关注公众号</text>
-            </view>
-            <text class="item-arrow">→</text>
-          </view>
+					<!-- 我的收藏 -->
+					<view class="func-item" @click="handleToCollection">
+						<image src="/static/svg/collection.svg" class="item-icon" mode="aspectFit"></image>
+						<text class="item-text">我的收藏</text>
+						<view class="item-badge">8</view>
+						<image src="/static/svg/arrow4.svg" class="arrow-icon" mode="aspectFit"></image>
+					</view>
 
-          <view class="list-item card" @click="navigateTo('favorites')">
-            <view class="item-left">
-              <text class="item-icon">⭐</text>
-              <text class="item-title">我的收藏</text>
-            </view>
-            <text class="item-arrow">→</text>
-          </view>
+					<!-- 使用教程 -->
+					<view class="func-item" @click="handleToTutorial">
+						<image src="/static/svg/tutorial.svg" class="item-icon" mode="aspectFit"></image>
+						<text class="item-text">使用教程</text>
+						<image src="/static/svg/arrow4.svg" class="arrow-icon" mode="aspectFit"></image>
+					</view>
 
-          <view class="list-item card" @click="navigateTo('settings')">
-            <view class="item-left">
-              <text class="item-icon">⚙️</text>
-              <text class="item-title">设置</text>
-            </view>
-            <text class="item-arrow">→</text>
-          </view>
+					<!-- 意见反馈 -->
+					<view class="func-item" @click="handleToFeedback">
+						<image src="/static/svg/feedback.svg" class="item-icon" mode="aspectFit"></image>
+						<text class="item-text">意见反馈</text>
+						<image src="/static/svg/arrow4.svg" class="arrow-icon" mode="aspectFit"></image>
+					</view>
+				</view>
 
-          <view class="list-item card" @click="navigateTo('about')">
-            <view class="item-left">
-              <text class="item-icon">ℹ️</text>
-              <text class="item-title">关于</text>
-            </view>
-            <text class="item-arrow">→</text>
-          </view>
-        </view>
-      </view>
 
-      <!-- 版本信息 -->
-      <view class="version-section">
-        <text class="version-text">拼豆转换器 v1.0.0</text>
-      </view>
+				<!-- 偏好设置 -->
+				<!-- 设置列表 -->
+				<view class="func-items">
+					<!-- 偏好设置（子项，可按需修改） -->
+					<view class="func-item" @click="handleToPrefDetail">
+						<image src="/static/svg/pref.svg" class="item-icon" mode="aspectFit"></image>
+						<text class="item-text">偏好设置</text>
+						<image src="/static/svg/arrow4.svg" class="arrow-icon" mode="aspectFit"></image>
+					</view>
 
-      <!-- 底部占位 -->
-      <view class="bottom-placeholder"></view>
-    </scroll-view>
+					<!-- 清理缓存 -->
+					<view class="func-item" @click="handleClearCache">
+						<image src="/static/svg/trash.svg" class="item-icon" mode="aspectFit"></image>
+						<text class="item-text">清理缓存</text>
+						<image src="/static/svg/arrow4.svg" class="arrow-icon" mode="aspectFit"></image>
+					</view>
+					<!-- 关于 -->
+					<view class="func-item" @click="handleToAbout">
+						<image src="/static/svg/info.svg" class="item-icon" mode="aspectFit"></image>
+						<text class="item-text">关于</text>
+						<image src="/static/svg/arrow4.svg" class="arrow-icon" mode="aspectFit"></image>
+					</view>
+				</view>
 
-    <!-- 自定义TabBar -->
-    <tabbar :current="3"></tabbar>
-  </view>
+				<!-- 版本号（底部居中） -->
+				<view class="version">Version {{app.globalData.version}}</view>
+			</view>
+		</view>
+
+		<!-- 自定义TabBar -->
+		<tabbar :current="3"></tabbar>
+	</view>
 </template>
 
 <script setup>
-import { ref } from 'vue'
-
-const userInfo = ref(null)
-const stats = ref({
-  total: 0,
-  saved: 0,
-  days: 1
-})
-
-const loadUserInfo = () => {
-  const userData = uni.getStorageSync('userInfo')
-  if (userData) {
-    userInfo.value = userData
-    loadStats()
-  }
+const app = getApp();
+// 微信登录（后续补全登录逻辑）
+const handleWxLogin = () => {
+	console.log('触发微信登录')
+	// 示例：uni.login() + 后端接口校验
 }
 
-const loadStats = () => {
-  const statsData = uni.getStorageSync('userStats')
-  if (statsData) {
-    stats.value = statsData
-  }
+// 跳转到历史记录
+const handleToHistory = () => {
+	uni.navigateTo({
+		url: '/pages/history/index'
+	})
 }
 
-const handleLogin = async () => {
-  try {
-    const loginRes = await uni.login({
-      provider: 'weixin'
-    })
-
-    userInfo.value = {
-      nickName: '用户' + Math.floor(Math.random() * 10000),
-      userId: Math.floor(Math.random() * 1000000)
-    }
-
-    uni.setStorageSync('userInfo', userInfo.value)
-
-    uni.showToast({
-      title: '登录成功',
-      icon: 'success'
-    })
-
-    initStats()
-  } catch (error) {
-    uni.showToast({
-      title: '登录失败',
-      icon: 'none'
-    })
-  }
+// 跳转到我的收藏
+const handleToCollection = () => {
+	uni.navigateTo({
+		url: '/pages/collection/index'
+	})
 }
 
-const initStats = () => {
-  const statsData = {
-    total: 0,
-    saved: 0,
-    days: 1
-  }
-  uni.setStorageSync('userStats', statsData)
-  stats.value = statsData
+// 跳转到使用教程
+const handleToTutorial = () => {
+	uni.navigateTo({
+		url: '/pages/tutorial/index'
+	})
 }
 
-const handleLogout = () => {
-  uni.showModal({
-    title: '提示',
-    content: '确定退出登录？',
-    success: (res) => {
-      if (res.confirm) {
-        uni.removeStorageSync('userInfo')
-        userInfo.value = null
-        uni.showToast({
-          title: '已退出',
-          icon: 'success'
-        })
-      }
-    }
-  })
+// 跳转到意见反馈
+const handleToFeedback = () => {
+	uni.navigateTo({
+		url: '/pages/feedback/index'
+	})
 }
 
-const handleFollow = () => {
-  uni.showToast({
-    title: '关注功能开发中',
-    icon: 'none'
-  })
+// 跳转到偏好设置页（第二张图）
+const handleToSetting = () => {
+	uni.navigateTo({
+		url: '/pages/setting/index'
+	})
+}
+// 跳转到偏好设置详情
+const handleToPrefDetail = () => {
+	console.log('跳转到偏好设置详情页')
 }
 
-const navigateTo = (page) => {
-  uni.showToast({
-    title: '功能开发中',
-    icon: 'none'
-  })
+// 清理缓存（uniapp官方API实现）
+const handleClearCache = () => {
+	uni.showModal({
+		title: '提示',
+		content: '确定要清理缓存吗？',
+		success: (res) => {
+			if (res.confirm) {
+				uni.clearStorage() // 清空本地缓存
+				uni.showToast({
+					title: '缓存清理完成',
+					icon: 'success'
+				})
+			}
+		}
+	})
 }
 
-onLoad(() => {
-  loadUserInfo()
-})
+// 跳转到关于页
+const handleToAbout = () => {
+	uni.navigateTo({
+		url: '/pages/about/index'
+	})
+}
 </script>
 
 <style lang="scss" scoped>
 @import '@/styles/theme-modern.scss';
 
 .page-container {
-  min-height: 100vh;
-  background: var(--bg-primary);
-  display: flex;
-  flex-direction: column;
+	width: 100%;
+	min-height: 100vh;
+	background: var(--bg-primary);
+	display: flex;
+	flex-direction: column;
 }
 
-.main-content {
-  flex: 1;
-  padding: var(--space-lg);
+.my-page {
+	width: 100%;
+	min-height: 100vh;
+	padding: var(--space-xl);
+	box-sizing: border-box;
+	margin-bottom: calc(env(safe-area-inset-bottom) + 150rpx);
 }
 
-.user-section {
-  margin-bottom: var(--space-xl);
+/* 头部标题 */
+.header {
+	margin-bottom: 30rpx;
+
+	.title {
+		display: block;
+		font-size: 48rpx;
+		font-weight: 700;
+		color: #333;
+		margin-bottom: 10rpx;
+	}
+
+	.sub-title {
+		font-size: 28rpx;
+		color: #666;
+	}
 }
 
-.user-card {
-  display: flex;
-  align-items: center;
-  gap: var(--space-md);
-  padding: var(--space-lg);
-
-  .user-avatar {
-    width: 100rpx;
-    height: 100rpx;
-    border-radius: 50%;
-    background: var(--accent-primary);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-
-    .avatar-text {
-      font-size: 40rpx;
-      color: white;
-      font-weight: 600;
-    }
-  }
-
-  .user-info {
-    flex: 1;
-
-    .user-name {
-      font-size: var(--text-lg);
-      font-weight: 600;
-      color: var(--text-primary);
-      display: block;
-      margin-bottom: 4rpx;
-    }
-
-    .user-id {
-      font-size: var(--text-sm);
-      color: var(--text-muted);
-      display: block;
-    }
-  }
-
-  .logout-btn {
-    padding: var(--space-sm) var(--space-md);
-    background: var(--bg-secondary);
-    color: var(--text-secondary);
-    border-radius: var(--radius-sm);
-    font-size: var(--text-sm);
-    border: none;
-  }
-}
-
+/* 登录卡片 */
 .login-card {
-  width: 100%;
-  height: 200rpx;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--accent-primary);
+	border-radius: var(--radius-lg);
+	padding: var(--space-xl);
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	margin-bottom: var(--space-xl);
+	box-sizing: border-box;
+	background-color: #bedbff1a;
+	border: 2rpx solid #bedbff33;
 
-  .login-text {
-    font-size: var(--text-lg);
-    color: white;
-    font-weight: 600;
-  }
+	.unlogged {
+		padding-block: var(--space-lg);
+		text-align: center;
+	}
+
+	.avatar-placeholder {
+		width: 128rpx;
+		height: 128rpx;
+		border-radius: 50%;
+		background-color: var(--text-lighter);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		margin-bottom: var(--space-lg);
+		margin-inline: auto;
+
+		.avatar {
+			width: 64rpx;
+			height: 64rpx;
+		}
+	}
+
+	.login-tip {
+		font-size: var(--text-base);
+		color: var(--text-secondary);
+		margin-bottom: var(--space-lg);
+	}
+
+	.login-btn {
+		height: 88rpx;
+		line-height: 88rpx;
+		background-color: var(--text-primary);
+		color: #fff;
+		border-radius: 28rpx;
+		font-size: var(--text-base);
+		border: none;
+		padding-inline: var(--space-xl);
+		box-sizing: border-box;
+		font-weight: 500;
+
+
+		&::after {
+			// 清除uniapp button默认边框
+			border: none;
+		}
+	}
 }
 
-.stats-section {
-  margin-bottom: var(--space-xl);
+/* 功能列表 */
+.func-list {
+	.func-items {
+		margin-block-end: var(--space-xl);
+	}
+
+	.func-item {
+		display: flex;
+		align-items: center;
+		width: 100%;
+		// justify-content: space-between;
+		height: 112rpx;
+		padding-inline: var(--space-lg);
+		box-sizing: border-box;
+		border-radius: 28rpx;
+		gap: 32rpx;
+
+		.item-icon {
+			width: 40rpx;
+			height: 40rpx;
+		}
+
+		.arrow-icon {
+			width: 32rpx;
+			height: 32rpx;
+		}
+
+		.item-text {
+			font-size: 30rpx;
+			color: var(--text-tertiary-2);
+			flex: 1;
+			text-align: left;
+		}
+
+		.item-badge {
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			height: 42rpx;
+			background-color: var(--accent-light-2);
+			color: var(--text-primary);
+			font-size: 24rpx;
+			font-weight: 500;
+			padding: 4rpx 16rpx;
+			box-sizing: border-box;
+			border-radius: var(--radius-sm);
+		}
+	}
 }
 
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: var(--space-md);
+.setting-page {
+	min-height: 100vh;
+	background-color: #f7f8fa;
+	padding: 20rpx;
+	box-sizing: border-box;
+	display: flex;
+	flex-direction: column;
 }
 
-.stat-item {
-  background: var(--bg-secondary);
-  border-radius: var(--radius-md);
-  padding: var(--space-lg);
-  text-align: center;
-
-  .stat-value {
-    font-size: var(--text-2xl);
-    font-weight: 700;
-    color: var(--accent-primary);
-    display: block;
-    margin-bottom: var(--space-xs);
-  }
-
-  .stat-label {
-    font-size: var(--text-sm);
-    color: var(--text-muted);
-    display: block;
-  }
-}
-
-.function-section {
-  margin-bottom: var(--space-xl);
-}
-
-.function-list {
-  .list-item {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: var(--space-lg);
-    margin-bottom: var(--space-sm);
-
-    &:last-child {
-      margin-bottom: 0;
-    }
-
-    .item-left {
-      display: flex;
-      align-items: center;
-      gap: var(--space-md);
-
-      .item-icon {
-        font-size: var(--text-xl);
-      }
-
-      .item-title {
-        font-size: var(--text-base);
-        font-weight: 500;
-        color: var(--text-primary);
-      }
-    }
-
-    .item-arrow {
-      font-size: 32rpx;
-      color: var(--text-muted);
-      font-weight: 300;
-    }
-  }
-}
-
-.version-section {
-  text-align: center;
-  padding: var(--space-xl) 0;
-
-  .version-text {
-    font-size: var(--text-sm);
-    color: var(--text-muted);
-  }
-}
-
-/* 底部占位 */
-.bottom-placeholder {
-  height: 200rpx;
+/* 版本号 */
+.version {
+	margin-top: auto; // 自动推到页面底部
+	text-align: center;
+	font-size: 24rpx;
+	color: var(--text-muted);
 }
 </style>

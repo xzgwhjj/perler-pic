@@ -8,10 +8,14 @@
 export default {
 	onLaunch() {
 		console.log('拼豆工坊启动')
+		this.getVersion();
 		this.checkLogin()
 	},
 	onShow() {
 		console.log('App Show')
+	},
+	globalData: {
+		version: '1.0.0',
 	},
 	methods: {
 		checkLogin() {
@@ -19,7 +23,20 @@ export default {
 			if (userInfo) {
 				console.log('用户已登录:', userInfo.nickName)
 			}
-		}
+		},
+		/**
+		 * 获取版本号
+		 */
+		getVersion() {
+			// #ifdef MP-WEIXIN
+			const accountInfo = uni.getAccountInfoSync();
+			if (accountInfo.miniProgram.version) {
+				this.version = accountInfo.miniProgram.version
+			} else {
+				this.version = '1.0.0';
+			}
+			// #endif
+		},
 	}
 }
 </script>
