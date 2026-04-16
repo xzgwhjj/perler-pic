@@ -1,5 +1,5 @@
 <template>
-  <view class="custom-tabbar-container">
+  <view v-if="isVisible" class="custom-tabbar-container">
     <view class="custom-tabbar">
       <view
         v-for="(item, index) in tabList"
@@ -19,7 +19,7 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue'
+import { ref, watch, onMounted, onUnmounted } from 'vue'
 
 const props = defineProps({
   current: {
@@ -29,6 +29,27 @@ const props = defineProps({
 })
 
 const currentIndex = ref(props.current)
+const isVisible = ref(true)
+
+// 监听隐藏 tabbar 事件
+const onHideTabbar = () => {
+	isVisible.value = false
+}
+
+// 监听显示 tabbar 事件
+const onShowTabbar = () => {
+	isVisible.value = true
+}
+
+onMounted(() => {
+	uni.$on('hide-tabbar', onHideTabbar)
+	uni.$on('show-tabbar', onShowTabbar)
+})
+
+onUnmounted(() => {
+	uni.$off('hide-tabbar', onHideTabbar)
+	uni.$off('show-tabbar', onShowTabbar)
+})
 
 const tabList = [
   {
@@ -81,7 +102,7 @@ const switchTab = (index) => {
   background: transparent;
   display: flex;
   justify-content: center;
-  z-index: 999;
+  z-index: 100;  // 降低层级，让弹框可以覆盖
 }
 
 .custom-tabbar {

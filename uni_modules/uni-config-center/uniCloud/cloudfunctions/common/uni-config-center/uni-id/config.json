@@ -1,0 +1,12 @@
+{
+	"tokenSecret": "welcome-to-use-my-perler-pic-welcome-to-use-my-perler-pic-welcome-to-use-my-perler-pic",
+	"tokenExpiresIn": 7776000,
+	"mp-weixin": {
+		"oauth": {
+			"weixin": {
+				"appid": "wx18a3da608e578261",
+				"appsecret": "931a96683f69c96c2c6793232cc927d3"
+			}
+		}
+	}
+}
