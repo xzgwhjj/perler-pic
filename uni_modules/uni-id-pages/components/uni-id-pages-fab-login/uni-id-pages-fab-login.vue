@@ -1,5 +1,5 @@
 <template>
-	<view>
+	<view v-show="isShow">
 		<view class="fab-login-box">
 			<view class="item" v-for="(item,index) in servicesList" :key="index"
 				@click="item.path?toPage(item.path):login_before(item.id,false)">
@@ -41,6 +41,12 @@
 				set(agree) {
 					return this.getParentComponent().agree = agree
 				}
+			}
+		},
+		props: {
+			isShow: {
+				type: Boolean,
+				default: false
 			}
 		},
 		data() {
@@ -245,7 +251,8 @@
 				}
 			},
 			async login_before(type, navigateBack = true, options = {}) {
-				console.log(type, options);
+				console.log('login_before', type, navigateBack, options);
+				// console.log(type, options);
 				//提示空实现
 				if (["qq",
 						"xiaomi",

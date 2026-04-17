@@ -24,8 +24,10 @@
 		},
 		methods: {
 			async beforeGetphonenumber() {
-				return await new Promise((resolve,reject)=>{
-					uni.showLoading({ mask: true })
+				return await new Promise((resolve, reject) => {
+					uni.showLoading({
+						mask: true
+					})
 					wx.checkSession({
 						success() {
 							// console.log('session_key 未过期');
@@ -38,14 +40,16 @@
 								success({
 									code
 								}) {
-									uniCloud.importObject("uni-id-co",{
-										customUI:true
-									}).loginByWeixin({code}).then(e=>{
+									uniCloud.importObject("uni-id-co", {
+										customUI: true
+									}).loginByWeixin({
+										code
+									}).then(e => {
 										resolve()
-									}).catch(e=>{
+									}).catch(e => {
 										console.log(e);
 										reject()
-									}).finally(e=>{
+									}).finally(e => {
 										uni.hideLoading()
 									})
 								},
@@ -83,6 +87,8 @@
 
 <style lang="scss" scoped>
 	@import "@/uni_modules/uni-id-pages/common/login-page.scss";
+	@import "@/styles/theme-modern.scss";
+
 	view {
 		display: flex;
 	}
@@ -97,21 +103,21 @@
 	}
 
 	.headBox {
-		padding: 20rpx;
+		padding: var(--space-lg);
 		height: 80rpx;
 		line-height: 80rpx;
 		text-align: left;
-		font-size: 16px;
-		color: #333333;
+		font-size: var(--text-lg);
+		color: var(--text-primary);
 		margin-left: 15rpx;
 	}
 
 	.tip {
-		color: #666666;
+		color: var(--text-secondary);
 		text-align: left;
 		justify-content: center;
-		margin: 10rpx 30rpx;
-		font-size: 18px;
+		margin: var(--space-sm) var(--space-lg);
+		font-size: var(--text-base);
 	}
 
 	.btnBox {
@@ -126,34 +132,35 @@
 		width: 200rpx;
 		height: 80upx;
 		line-height: 80upx;
-		border-radius: 5px;
+		border-radius: 20rpx;
 		margin: 0 20rpx;
-		font-size: 14px;
+		font-size: 26rpx;
 	}
 
 	.close {
-		color: #999999;
-		border-color: #EEEEEE;
-		border-style: solid;
-		border-width: 1px;
-		background-color: #FFFFFF;
+		font-weight: 500;
+		border: 2rpx solid var(--border-medium);
+		color: var(--text-tertiary);
 	}
 
-	.close:active {
-		color: #989898;
-		background-color: #E2E2E2;
-	}
+	// .close:active {
+	// 	color: #989898;
+	// 	background-color: #E2E2E2;
+	// }
 
 	.agree {
 		color: #FFFFFF;
+		background: var(--text-primary);
+		border-color: var(--text-primary);
 	}
 
 	/* #ifdef MP */
 	.agree::after {
 		border: none;
 	}
+
 	/* #endif */
-	
+
 	.agree:active {
 		background-color: #F5F5F6;
 	}

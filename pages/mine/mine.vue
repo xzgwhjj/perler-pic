@@ -2,32 +2,73 @@
 	<view class="page-container">
 		<view class="my-page">
 			<!-- 登录卡片区域 -->
-			<view class="login-card">
+			<view class="login-card" v-if="!isLoggedIn">
 				<!-- 未登录状态 -->
-				<view v-if="!isLoggedIn" class="unlogged">
+				<view class="unlogged">
 					<view class="avatar-placeholder">
 						<image src="/static/svg/avatar.svg" class="avatar" mode="aspectFit"></image>
 					</view>
 					<text class="login-tip">登录后查看更多功能</text>
 					<button class="login-btn" @click="openLoginPopup">微信登录</button>
 				</view>
-				<!-- 已登录状态 -->
-				<view v-else class="logged">
-					<view class="user-info">
+			</view>
+			<template v-else>
+				<!-- 用户信息卡片 -->
+				<view class="user-card">
+					<view class="user-header" @tap="updateUser">
+						<!-- 头像 -->
 						<image v-if="userInfo.avatarUrl" :src="userInfo.avatarUrl" class="user-avatar"
 							mode="aspectFill"></image>
 						<view v-else class="avatar-placeholder">
 							<text class="avatar-text">{{ userInfo.nickName ? userInfo.nickName[0] : '我' }}</text>
 						</view>
-						<view class="user-details">
-							<text class="user-name">{{ userInfo.nickName || '微信用户' }}</text>
+
+						<!-- 用户信息 -->
+						<view class="user-info">
+							<text class="username">{{ userInfo.nickName || '拼豆达人' }}</text>
 							<text class="user-id">ID: {{ userInfo.userId || '----' }}</text>
 						</view>
-					</view>
-					<button class="logout-btn" @click="handleLogout">退出登录</button>
-				</view>
-			</view>
 
+						<!-- 箭头 -->
+						<view class="arrow-right">
+							<image src="/static/svg/arrow4.svg" class="arrow-icon" mode="aspectFit"></image>
+						</view>
+					</view>
+
+					<!-- 等级与进度条 -->
+					<view class="level-section">
+						<view class="star-tag">
+							<image src="/static/svg/star.svg" class="star-icon" mode="aspectFit"></image>
+						</view>
+						<view class="level-content">
+							<view class="level-info">
+								<text class="level-text">Lv.5 高级创作者</text>
+								<text class="exp-text">380/500 EXP</text>
+							</view>
+							<view class="progress-bar">
+								<view class="progress-fill" :style="{ width: progressPercent + '%' }"></view>
+							</view>
+						</view>
+
+					</view>
+				</view>
+
+				<!-- 统计数据行 -->
+				<view class="stats-row">
+					<view class="stat-item">
+						<text class="stat-number">24</text>
+						<text class="stat-label">转换次数</text>
+					</view>
+					<view class="stat-item">
+						<text class="stat-number">8</text>
+						<text class="stat-label">创作次数</text>
+					</view>
+					<view class="stat-item">
+						<text class="stat-number">15</text>
+						<text class="stat-label">历史作品</text>
+					</view>
+				</view>
+			</template>
 			<!-- 功能列表区域 -->
 			<view class="func-list">
 				<view class="func-items">
@@ -104,7 +145,7 @@
 import {
 	onShow
 } from '@dcloudio/uni-app'
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 
 const app = getApp()
 
@@ -134,9 +175,10 @@ const openLoginPopup = () => {
 	loginPopupRef.value?.open()
 }
 
-// 监听登录开始事件（由登录弹框触发）
-uni.$on('login:start', async () => {
-	await performWxLogin()
+// 监听是否登录成功,并更新用户信息
+uni.$on('uni-id-pages-login-success', () => {
+	console.log('登录成功，更新用户信息')
+	checkLoginStatus()
 })
 
 // 页面显示时检查登录状态
@@ -152,8 +194,10 @@ onShow(() => {
 // 检查登录状态（从全局获取）
 const checkLoginStatus = () => {
 	const app = getApp()
-	if (app.globalData.isLoggedIn && app.globalData.userInfo) {
-		userInfo.value = app.globalData.userInfo
+	const loginStatus = app.getLoginStatus()
+
+	if (loginStatus.isLoggedIn && loginStatus.userInfo) {
+		userInfo.value = loginStatus.userInfo
 		isLoggedIn.value = true
 		loadStats()
 	} else {
@@ -168,6 +212,22 @@ const checkLoginStatus = () => {
 	}
 }
 
+// 修改个人信息（示例：重新获取用户信息）
+const updateUser = async () => {
+	uni.navigateTo({
+		url: '/uni_modules/uni-id-pages/pages/userinfo/userinfo'
+	})
+}
+
+// 经验数据（可改为接口获取的响应式变量）
+const currentExp = 380
+const maxExp = 500
+
+// 计算进度条百分比
+const progressPercent = computed(() => {
+	return (currentExp / maxExp) * 100
+})
+
 // 加载统计数据
 const loadStats = () => {
 	try {
@@ -178,238 +238,6 @@ const loadStats = () => {
 	} catch (e) {
 		console.error('加载统计数据失败:', e)
 	}
-}
-
-// 执行微信登录（由登录弹框触发）
-const performWxLogin = async () => {
-	// 防止重复点击
-	if (isLoading.value) return
-
-	isLoading.value = true
-
-	try {
-		uni.showLoading({ title: '登录中...' })
-
-		// 1. 调用微信登录获取 code
-		const loginRes = await wxLogin()
-
-		if (!loginRes.code) {
-			throw new Error('LOGIN_FAILED')
-		}
-
-		console.log('微信登录成功, code:', loginRes.code)
-
-		// 2. 调用 uni-id-co 进行登录
-		const res = await uniIdCo.loginByWeixin({ code: loginRes.code })
-
-		console.log('登录结果:', res)
-
-		if (res.errMsg) {
-			// 微信登录失败
-			throw new Error('LOGIN_FAILED')
-		}
-
-		// 3. 构建用户信息
-		const newUserInfo = {
-			userId: res.uid || res.userInfo?._id,
-			token: res.token,
-			tokenExpired: res.tokenExpired,
-			openId: res.openid || res.userInfo?.openid,
-			unionId: res.unionid || res.userInfo?.unionid,
-			nickName: res.nickname || res.userInfo?.nickname || '',
-			avatarUrl: res.avatar || res.userInfo?.avatar || '',
-			shareCount: 0,
-			loginTime: Date.now()
-		}
-
-		// 4. 保存用户信息到本地
-		uni.setStorageSync('userInfo', newUserInfo)
-		uni.setStorageSync('token', newUserInfo.token)
-
-		userInfo.value = newUserInfo
-		isLoggedIn.value = true
-
-		// 5. 更新全局登录状态
-		const app = getApp()
-		if (app) {
-			app.updateUserInfo(newUserInfo)
-		}
-
-		uni.hideLoading()
-
-		// 显示欢迎信息
-		const welcomeMsg = res.isNewUser ? '注册成功' : '登录成功'
-		uni.showToast({
-			title: welcomeMsg,
-			icon: 'success'
-		})
-
-		// 加载统计数据
-		loadStats()
-
-	} catch (error) {
-		uni.hideLoading()
-		console.error('微信登录失败:', error)
-
-		handleLoginError(error)
-	} finally {
-		isLoading.value = false
-	}
-}
-
-// 微信登录 - 获取 code
-const wxLogin = () => {
-	return new Promise((resolve, reject) => {
-		uni.login({
-			provider: 'weixin',
-			success: (res) => {
-				resolve(res)
-			},
-			fail: (err) => {
-				reject(err)
-			}
-		})
-	})
-}
-
-// 微信获取用户信息
-const wxGetUserProfile = () => {
-	return new Promise((resolve) => {
-		// 新版本微信小程序需要使用 button 组件触发
-		// 这里使用 getUserProfile 但允许用户拒绝
-		uni.getUserProfile({
-			desc: '用于完善用户资料，提供更好的服务体验',
-			success: (res) => {
-				resolve(res)
-			},
-			fail: (err) => {
-				console.log('用户拒绝授权个人信息:', err)
-				resolve(null)
-			}
-		})
-	})
-}
-
-// 调用云函数进行登录
-const cloudLogin = async (code, userProfile) => {
-	try {
-		const res = await uniCloud.callFunction({
-			name: 'user-login',
-			data: {
-				code: code,
-				nickname: userProfile?.userInfo?.nickName || '',
-				avatarUrl: userProfile?.userInfo?.avatarUrl || ''
-			}
-		})
-
-		console.log('云函数返回:', res)
-
-		if (res.result.success) {
-			return res.result.data
-		} else {
-			throw new Error(res.result.message || '云函数调用失败')
-		}
-	} catch (error) {
-		console.error('云函数调用失败:', error)
-
-		// 如果云函数未部署，使用本地登录作为降级方案
-		if (error.errCode === 'FUNCTION_NOT_FOUND' || error.message?.includes('not found')) {
-			console.log('云函数未部署，使用本地登录降级方案')
-			return fallbackLocalLogin(code, userProfile)
-		}
-
-		throw error
-	}
-}
-
-// 本地登录降级方案（云函数未部署时使用）
-const fallbackLocalLogin = async (code, userProfile) => {
-	// 生成临时用户ID
-	const tempUserId = 'local_' + Date.now()
-
-	return {
-		userId: tempUserId,
-		token: 'local_token_' + tempUserId,
-		tokenExpired: Date.now() + 7 * 24 * 60 * 60 * 1000,
-		isNewUser: true,
-		userInfo: {
-			openId: code, // 临时使用 code 作为标识
-			unionId: '',
-			nickName: userProfile?.userInfo?.nickName || '',
-			avatarUrl: userProfile?.userInfo?.avatarUrl || '',
-			shareCount: 0
-		}
-	}
-}
-
-// 处理登录错误
-const handleLoginError = (error) => {
-	let errorMsg = '登录失败'
-
-	if (error.errMsg) {
-		// 用户取消
-		if (error.errMsg.includes('cancel')) {
-			errorMsg = '取消登录'
-		}
-		// 用户拒绝
-		else if (error.errMsg.includes('deny') || error.errMsg.includes('auth deny')) {
-			errorMsg = '拒绝授权'
-		}
-		// 网络错误
-		else if (error.errMsg.includes('network') || error.type === 'networkError') {
-			errorMsg = '网络异常'
-		}
-		// 服务错误
-		else if (error.message === 'LOGIN_FAILED') {
-			errorMsg = '微信登录失败'
-		}
-	}
-
-	// 如果是云函数错误
-	if (error.message && error.message.includes('云函数')) {
-		errorMsg = '服务器错误，请稍后重试'
-	}
-
-	uni.showToast({
-		title: errorMsg,
-		icon: 'none',
-		duration: 2000
-	})
-}
-
-// 退出登录
-const handleLogout = () => {
-	uni.showModal({
-		title: '提示',
-		content: '确定要退出登录吗？',
-		success: (res) => {
-			if (res.confirm) {
-				// 清除本地用户信息
-				uni.removeStorageSync('userInfo')
-				userInfo.value = {
-					avatarUrl: '',
-					nickName: '',
-					userId: '',
-					openId: '',
-					unionId: ''
-				}
-				isLoggedIn.value = false
-				historyCount.value = 0
-				collectionCount.value = 0
-
-				// 更新全局登录状态
-				const app = getApp()
-				if (app) {
-					app.updateUserInfo(null)
-				}
-
-				uni.showToast({
-					title: '已退出登录',
-					icon: 'success'
-				})
-			}
-		}
-	})
 }
 
 // 跳转到历史记录
@@ -478,6 +306,11 @@ const handleToAbout = () => {
 
 <style lang="scss" scoped>
 @import '@/styles/theme-modern.scss';
+
+.arrow-icon {
+	width: 32rpx;
+	height: 32rpx;
+}
 
 .page-container {
 	width: 100%;
@@ -572,70 +405,193 @@ const handleToAbout = () => {
 		}
 	}
 
-	// 已登录状态
-	.logged {
-		padding-block: var(--space-md);
+	.page-container {
+		padding: 20rpx;
+		background-color: #f5f7fa;
+		min-height: 100vh;
+	}
+}
 
-		.user-info {
+/* 用户卡片 */
+.user-card {
+	background-color: var(--bg-card-2);
+	border-radius: var(--radius-lg);
+	padding: var(--space-xl);
+	margin-bottom: var(--space-xl);
+	border: 2rpx solid var(--border-dark);
+
+	.user-header {
+		display: flex;
+		align-items: center;
+		margin-bottom: var(--space-lg);
+		gap: var(--space-lg);
+
+		.user-avatar {
+			width: 128rpx;
+			height: 128rpx;
+			border-radius: 50%;
+			flex-shrink: 0;
+			box-shadow: var(--shadow-lg);
+		}
+
+		.avatar-placeholder {
+			width: 128rpx;
+			height: 128rpx;
+			border-radius: 50%;
+			background-color: var(--accent-light-2);
 			display: flex;
 			align-items: center;
-			margin-bottom: var(--space-lg);
+			justify-content: center;
+			flex-shrink: 0;
+			box-shadow: var(--shadow-lg);
 
-			.user-avatar {
-				width: 128rpx;
-				height: 128rpx;
-				border-radius: 50%;
-				margin-right: var(--space-lg);
-			}
-
-			.avatar-placeholder {
-				width: 128rpx;
-				height: 128rpx;
-				border-radius: 50%;
-				background-color: var(--accent-light-2);
-				display: flex;
-				align-items: center;
-				justify-content: center;
-				margin-right: var(--space-lg);
-
-				.avatar-text {
-					font-size: 48rpx;
-					font-weight: 600;
-					color: var(--text-primary);
-				}
-			}
-
-			.user-details {
-				flex: 1;
-
-				.user-name {
-					font-size: var(--text-lg);
-					font-weight: 600;
-					color: var(--text-primary);
-					display: block;
-					margin-bottom: 4rpx;
-				}
-
-				.user-id {
-					font-size: var(--text-sm);
-					color: var(--text-muted);
-					display: block;
-				}
+			.avatar-text {
+				font-size: 48rpx;
+				font-weight: 600;
+				color: var(--text-primary);
 			}
 		}
 
-		.logout-btn {
-			height: 72rpx;
-			line-height: 72rpx;
-			background-color: var(--bg-secondary);
-			color: var(--text-secondary);
-			border-radius: 20rpx;
-			font-size: var(--text-sm);
-			border: none;
+		.avatar {
+			width: 120rpx;
+			height: 120rpx;
+			border-radius: 50%;
+			background: linear-gradient(135deg, #a8d0ff, #6fa8e8);
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			margin-right: 20rpx;
 
-			&::after {
-				border: none;
+			.avatar-text {
+				font-size: 40rpx;
+				color: #ffffff;
+				font-weight: bold;
 			}
+		}
+
+		.user-info {
+			flex: 1;
+			display: flex;
+			flex-direction: column;
+
+			.username {
+				font-size: 34rpx;
+				font-weight: 600;
+				color: var(--text-primary);
+				margin-bottom: 8rpx;
+			}
+
+			.user-id {
+				font-size: 26rpx;
+				color: var(--text-secondary);
+			}
+		}
+
+		.arrow-right {
+			width: 72rpx;
+			height: 72rpx;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+		}
+
+	}
+
+	/* 等级进度条区域 */
+	.level-section {
+		border-radius: 20rpx;
+		padding-block: var(--space-sm);
+		padding-inline: var(--space-md);
+		box-sizing: border-box;
+		position: relative;
+		background-image: linear-gradient(to right, var(--bg-card-2), transparent);
+		border: 2rpx solid var(--border-dark);
+		gap: 16rpx;
+		display: flex;
+		align-items: center;
+
+		.star-tag {
+			width: 48rpx;
+			height: 48rpx;
+			background-image: linear-gradient(to bottom right, #fbbf24, #f59e0b);
+			border-radius: 8rpx;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+
+			.star-icon {
+				width: 28rpx;
+				height: 28rpx;
+			}
+		}
+
+		.level-content {
+			flex: 1;
+
+			.level-info {
+				display: flex;
+				align-items: center;
+				justify-content: space-between;
+				margin-bottom: 8rpx;
+				font-size: 22rpx;
+
+				.level-text {
+					color: var(--text-tertiary-2);
+					font-weight: 500;
+				}
+
+				.exp-text {
+					color: var(--text-secondary);
+				}
+			}
+
+		}
+
+		.progress-bar {
+			width: 100%;
+			height: 12rpx;
+			background-color: var(--accent-light);
+			border-radius: var(--radius-xl);
+			overflow: hidden;
+
+			.progress-fill {
+				height: 100%;
+				background-image: linear-gradient(to right, #bedbff, #93b5d1);
+				transition: width 0.3s ease;
+			}
+		}
+	}
+}
+
+/* 统计数据行 */
+.stats-row {
+	gap: 24rpx;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	display: grid;
+	margin-bottom: var(--space-xl);
+
+	.stat-item {
+		background-color: var(--text-lighter-2);
+		border-radius: 28rpx;
+		padding: var(--space-lg);
+		box-sizing: border-box;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.05);
+		text-align: center;
+		border: 2rpx solid var(--text-lighter);
+
+		.stat-number {
+			font-size: 44rpx;
+			font-weight: 600;
+			color: var(--text-primary);
+			margin-bottom: 8rpx;
+		}
+
+		.stat-label {
+			font-size: 24rpx;
+			color: var(--text-secondary);
 		}
 	}
 }

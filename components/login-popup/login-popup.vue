@@ -5,54 +5,12 @@
 			<view class="close-btn" @click="closePopup">
 				<text class="close-icon">✕</text>
 			</view>
-
-			
-
 			<!-- 标题 -->
 			<view class="popup-header">
 				<text class="popup-title">登录体验更多功能</text>
 				<text class="popup-subtitle">登录后可以公开分享你的作品</text>
 			</view>
-			
 			<withoutpwd></withoutpwd>
-
-			<!-- 微信登录按钮 -->
-		<!-- 	<button class="wechat-btn" :disabled="isLoading" @click="handleWechatLogin">
-				<image src="/static/logo.png" class="wechat-icon" mode="aspectFit"></image>
-				<text v-if="!isLoading">微信一键登录</text>
-				<text v-else>登录中...</text>
-			</button> -->
-<!-- 
-			<template v-if="['apple','weixin', 'weixinMobile', 'huawei', 'huaweiMobile'].includes(type)">
-				<view class="quickLogin">
-					<view class="wechat-btn">
-						<text v-if="type !== 'weixinMobile' && type !== 'huaweiMobile'" @click="quickLogin">微信一键登录</text>
-					</view>
-					<uni-id-pages-agreements scope="register" ref="agreements"></uni-id-pages-agreements>
-				</view>
-			</template> -->
-
-			<!-- 隐私协议勾选 -->
-	<!-- 		<view class="agreement-row">
-				<checkbox-group @change="onAgreementChange">
-					<label class="agreement-label">
-						<checkbox value="agree" :checked="isAgreed" color="#07C160" style="transform: scale(0.8)" />
-						<text class="agreement-text">
-							我已阅读并同意
-							<text class="link" @click.stop="openPrivacy">《隐私政策》</text>
-							和
-							<text class="link" @click.stop="openTerms">《用户协议》</text>
-						</text>
-					</label>
-				</checkbox-group>
-			</view> -->
-
-			<!-- 温馨提示 -->
-			<!-- <view class="tips">
-				<text class="tips-text">登录即表示你同意我们的服务条款</text>
-			</view> -->
-			<!-- 固定定位的快捷登录按钮 -->
-			<!-- <uni-id-pages-fab-login ref="uniFabLogin"></uni-id-pages-fab-login> -->
 		</view>
 	</uni-popup>
 </template>
@@ -77,11 +35,8 @@
 	})
 
 	const popupRef = ref(null)
-	const isAgreed = ref(false)
 	const isLoading = ref(false)
 	let type = ref('')
-	const uniFabLogin = ref(null)
-	const agreements = ref(null)
 
 	const loginTypes = computed(() => {
 		return config.loginTypes
@@ -93,10 +48,6 @@
 
 		console.log("type.value: -----------", type.value);
 	})
-	
-	// const showAgreementModal = () => {
-	// 	agreements.value.popup()
-	// }
 
 	// 弹窗状态变化
 	const onPopupChange = (e) => {
@@ -125,72 +76,7 @@
 		console.log('登录成功，关闭登录弹窗')
 		closePopup()
 	})
-
-	// 协议勾选变化
-	const onAgreementChange = (e) => {
-		isAgreed.value = e.detail.value.includes('agree')
-	}
-
-	// 打开隐私政策
-	const openPrivacy = () => {
-		uni.navigateTo({
-			url: '/pages/privacy/index'
-		})
-	}
-
-	// 打开用户协议
-	const openTerms = () => {
-		uni.navigateTo({
-			url: '/pages/terms/index'
-		})
-	}
-
-	const quickLogin = (e) => {
-		let options = {}
-		console.log(e)
-		if (e.detail?.code) {
-			options.phoneNumberCode = e.detail.code
-		}
-
-		if ((type.value === 'weixinMobile' || type.value === 'huaweiMobile') && !e.detail?.code) {
-			uni.showToast({
-				title: String(e.detail.errMsg),
-				icon: 'none'
-			});
-			return
-		}
-		
-		console.log("uniFabLogin.value: -----------", uniFabLogin.value);
-
-		uniFabLogin.value.login_before(type.value, true, options)
-	}
-
-	// 微信登录
-	const handleWechatLogin = async () => {
-		if (!isAgreed.value) {
-			uni.showToast({
-				title: '请先阅读并同意隐私协议',
-				icon: 'none'
-			})
-			return
-		}
-
-		isLoading.value = true
-
-		try {
-			uni.$emit('login:start')
-			closePopup()
-		} catch (error) {
-			console.error('登录失败:', error)
-			uni.showToast({
-				title: '登录失败，请重试',
-				icon: 'none'
-			})
-		} finally {
-			isLoading.value = false
-		}
-	}
-
+	
 	// 暴露方法给父组件
 	defineExpose({
 		open,

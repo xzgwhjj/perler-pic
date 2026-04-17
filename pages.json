@@ -70,6 +70,11 @@
 				"navigationBarTitleText": "登录"
 			}
 		}, {
+			"path": "uni_modules/uni-id-pages/pages/login/login-withoutpwdnew",
+			"style": {
+				"navigationBarTitleText": "改版登录"
+			}
+		}, {
 			"path": "uni_modules/uni-id-pages/pages/login/login-withpwd",
 			"style": {
 				"navigationBarTitleText": "账号密码登录"
@@ -148,7 +153,7 @@
 	],
 	"globalStyle": {
 		"navigationBarTextStyle": "black",
-		"navigationBarTitleText": "拼豆工坊",
+		"navigationBarTitleText": "豆图",
 		"navigationBarBackgroundColor": "#ffffff",
 		"backgroundColor": "#ffffff"
 	},

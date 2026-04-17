@@ -133,7 +133,7 @@ export const mutations = {
 		const {
 			showToast = true, toastText = '登录成功', autoBack = true, uniIdRedirectUrl = '', passwordConfirmed
 		} = e
-		// console.log({toastText,autoBack});
+		console.log({toastText,autoBack});
 		if (showToast) {
 			uni.showToast({
 				title: toastText,

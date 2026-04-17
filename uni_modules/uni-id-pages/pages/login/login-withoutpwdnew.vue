@@ -43,9 +43,7 @@
 			<button class="uni-btn" type="primary" @click="toSmsPage">获取验证码</button>
 		</template>
 		<!-- 固定定位的快捷登录按钮 -->
-		<template v-if="showFabLogin">
-			<uni-id-pages-fab-login ref="uniFabLogin"></uni-id-pages-fab-login>
-		</template>
+		<uni-id-pages-fab-login ref="uniFabLogin"></uni-id-pages-fab-login>
 	</view>
 </template>
 
@@ -164,7 +162,7 @@
 				}
 
 				if ((this.type === 'weixinMobile' || this.type === 'huaweiMobile') && !e.detail?.code) return
-
+				console.log("this.$refs.uniFabLogin: -----------", this.$refs.uniFabLogin);
 				this.$refs.uniFabLogin.login_before(this.type, true, options)
 			},
 			toSmsPage() {

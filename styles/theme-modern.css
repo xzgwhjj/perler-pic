@@ -6,6 +6,7 @@
   --bg-secondary: #f8f9fa;
   --bg-tertiary: #f0f2f5;
   --bg-card: #ffffff;
+  --bg-card-2: #bedbff1a;
   /* 强调色 - 浅蓝色 */
   --accent-primary: #5cadfd;
   --accent-light: #eff6ff;
@@ -24,6 +25,7 @@
   /* 边框 */
   --border-light: #e8e8e8;
   --border-medium: #ebe6e7;
+  --border-dark: #bedbff33;
   /* 功能色 */
   --color-success: #52c41a;
   --color-warning: #faad14;

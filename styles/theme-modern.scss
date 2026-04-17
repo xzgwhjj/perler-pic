@@ -5,6 +5,7 @@
   --bg-secondary: #f8f9fa;
   --bg-tertiary: #f0f2f5;
   --bg-card: #ffffff;
+  --bg-card-2: #bedbff1a;
 
   /* 强调色 - 浅蓝色 */
   --accent-primary: #5cadfd;
@@ -21,11 +22,13 @@
   --text-muted: #99a1af; // gray-400
   --text-light: #d1d5dc;
   --text-lighter: #f5f5f5; // gray-100
+  --text-lighter-2: #fbf9fa; // gray-50
   --text-dark: #0a0a0a; // --foreground
 
   /* 边框 */
   --border-light: #e8e8e8;
   --border-medium: #ebe6e7; // gray-200
+  --border-dark: #bedbff33; // #bedbff33;
 
   /* 功能色 */
   --color-success: #52c41a;
@@ -36,9 +39,9 @@
   /* 阴影 */
   --shadow-sm: 0 2rpx 8rpx rgba(0, 0, 0, 0.04);
   --shadow-md: 0 4rpx 16rpx rgba(0, 0, 0, 0.08);
-  --shadow-lg: 0 8rpx 32rpx rgba(0, 0, 0, 0.12);
+  --shadow-lg: 0 10px 15px -3px #0000001a, 0 4px 6px -4px #0000001a
 
-  /* 圆角 - 圆润 */
+  /* 圆角 - 圆润 653034 */
   --radius-sm: 16rpx;
   --radius-md: 24rpx;
   --radius-lg: 32rpx;
@@ -46,7 +49,7 @@
   --radius-full: 9999rpx;
   
   /* 间距 */
-  --space-xs: 8rpx;
+  --space-xs: 8rpx; // 8rpx
   --space-sm: 16rpx;
   --space-md: 24rpx;
   --space-lg: 32rpx;
