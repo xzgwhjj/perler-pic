@@ -85,7 +85,7 @@
 	</view>
 </template>
 <script>
-const uniIdCo = uniCloud.importObject("uni-id-co")
+const uniIdCo = uniCloud.importObject("uni-id-co", { customUI: true })
 import {
 	mutations,
 	store
@@ -127,6 +127,7 @@ export default {
 		this.univerifyStyle.otherLoginButton.title = "其他号码绑定"
 	},
 	async onLoad(e) {
+		uni.hideLoading() // 强制隐藏可能残留的loading
 		if (e.showLoginManage) {
 			this.showLoginManage = true //通过页面传参隐藏登录&退出登录按钮
 		}
@@ -223,7 +224,7 @@ export default {
 			})
 		},
 		async bindThirdAccount(provider) {
-			const uniIdCo = uniCloud.importObject("uni-id-co")
+			const uniIdCo = uniCloud.importObject("uni-id-co", { customUI: true })
 			const bindField = {
 				weixin: 'wx_openid',
 				alipay: 'ali_openid',

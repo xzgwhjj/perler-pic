@@ -222,7 +222,7 @@ const checkLoginStatus = () => {
 // 修改个人信息（示例：重新获取用户信息）
 const updateUser = async () => {
 	uni.navigateTo({
-		url: '/uni_modules/uni-id-pages/pages/userinfo/userinfo'
+		url: '/uni_modules/uni-id-pages/pages/userinfo/userinfo?showLoginManage="true"'
 	})
 }
 
