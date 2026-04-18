@@ -1,13 +1,8 @@
 <template>
   <view v-if="isVisible" class="custom-tabbar-container">
     <view class="custom-tabbar">
-      <view
-        v-for="(item, index) in tabList"
-        :key="index"
-        class="tab-item"
-        :class="{ active: currentIndex === index }"
-        @click="switchTab(index)"
-      >
+      <view v-for="(item, index) in tabList" :key="index" class="tab-item" :class="{ active: current === index }"
+        @click="switchTab(index)">
         <view class="tab-icon">
           <image :src="item.icon" class="icon-image" />
           <view class="icon-circle"></view>
@@ -19,7 +14,7 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted, onUnmounted } from 'vue'
+import { onMounted, onUnmounted, ref } from 'vue'
 
 const props = defineProps({
   current: {
@@ -33,22 +28,22 @@ const isVisible = ref(true)
 
 // 监听隐藏 tabbar 事件
 const onHideTabbar = () => {
-	isVisible.value = false
+  isVisible.value = false
 }
 
 // 监听显示 tabbar 事件
 const onShowTabbar = () => {
-	isVisible.value = true
+  isVisible.value = true
 }
 
 onMounted(() => {
-	uni.$on('hide-tabbar', onHideTabbar)
-	uni.$on('show-tabbar', onShowTabbar)
+  uni.$on('hide-tabbar', onHideTabbar)
+  uni.$on('show-tabbar', onShowTabbar)
 })
 
 onUnmounted(() => {
-	uni.$off('hide-tabbar', onHideTabbar)
-	uni.$off('show-tabbar', onShowTabbar)
+  uni.$off('hide-tabbar', onHideTabbar)
+  uni.$off('show-tabbar', onShowTabbar)
 })
 
 const tabList = [
@@ -74,14 +69,9 @@ const tabList = [
   }
 ]
 
-watch(() => props.current, (newVal) => {
-  currentIndex.value = newVal
-})
 
 const switchTab = (index) => {
-  if (currentIndex.value === index) return
 
-  currentIndex.value = index
   uni.switchTab({
     url: tabList[index].path
   })
@@ -102,7 +92,7 @@ const switchTab = (index) => {
   background: transparent;
   display: flex;
   justify-content: center;
-  z-index: 100;  // 降低层级，让弹框可以覆盖
+  z-index: 100; // 降低层级，让弹框可以覆盖
 }
 
 .custom-tabbar {
@@ -139,14 +129,14 @@ const switchTab = (index) => {
       margin-bottom: 8rpx;
       transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
       position: relative;
-      
+
       .icon-image {
         width: 50rpx;
         height: 50rpx;
         transition: all 0.3s ease;
       }
 
-      .icon-circle{
+      .icon-circle {
         position: absolute;
         bottom: 0rpx;
         right: 4rpx;
@@ -173,7 +163,7 @@ const switchTab = (index) => {
         .icon-image {
           transform: scale(1.1);
         }
-        
+
         .icon-circle {
           width: 20rpx;
           height: 30rpx;

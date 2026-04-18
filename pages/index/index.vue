@@ -160,6 +160,7 @@
 </template>
 
 <script setup>
+import { incrementConversionCount } from '@/utils/statsManager.js';
 import { onShareAppMessage } from '@dcloudio/uni-app';
 import { computed, ref } from "vue";
 
@@ -245,12 +246,107 @@ const removeImage = () => {
 
 // 图片导入码点击事件
 const onShareCodeClick = () => {
+  uni.showActionSheet({
+    itemList: ['手动输入分享码', '扫码导入'],
+    success: (res) => {
+      if (res.tapIndex === 0) {
+        // 手动输入
+        showInputShareCodeDialog()
+      } else if (res.tapIndex === 1) {
+        // 扫码导入
+        scanQRCode()
+      }
+    }
+  })
+}
+
+// 显示输入分享码对话框
+const showInputShareCodeDialog = () => {
   uni.showModal({
-    title: '敬请期待',
-    content: '图片导入码功能即将上线',
-    showCancel: false
-  });
-};
+    title: '导入分享码',
+    editable: true,
+    placeholderText: '请粘贴分享码',
+    success: (res) => {
+      if (res.confirm && res.content) {
+        importShareCode(res.content.trim())
+      }
+    }
+  })
+}
+
+// 扫码导入分享码
+const scanQRCode = () => {
+  // #ifdef MP-WEIXIN
+  uni.scanCode({
+    onlyFromCamera: true,
+    success: (res) => {
+      console.log('扫码结果:', res)
+      if (res.result) {
+        // 解析扫码结果
+        const scanResult = res.result.trim()
+        handleScanResult(scanResult)
+      } else {
+        uni.showToast({
+          title: '未识别到有效信息',
+          icon: 'none'
+        })
+      }
+    },
+    fail: (err) => {
+      console.error('扫码失败:', err)
+      uni.showToast({
+        title: '扫码失败，请重试',
+        icon: 'none'
+      })
+    }
+  })
+  // #endif
+
+  // #ifndef MP-WEIXIN
+  uni.showToast({
+    title: '扫码功能仅支持微信小程序',
+    icon: 'none'
+  })
+  // #endif
+}
+
+// 处理扫码结果
+const handleScanResult = (result) => {
+  try {
+    // 尝试解析为分享码
+    // 如果是完整的分享码（以 URL 编码形式存在），直接使用
+    if (result && result.length > 20) {
+      importShareCode(result)
+    } else {
+      uni.showToast({
+        title: '无效的分享码',
+        icon: 'none'
+      })
+    }
+  } catch (e) {
+    console.error('解析扫码结果失败:', e)
+    uni.showToast({
+      title: '解析失败',
+      icon: 'none'
+    })
+  }
+}
+
+// 导入分享码
+const importShareCode = (codeStr) => {
+  if (!codeStr) {
+    uni.showToast({
+      title: '请输入分享码',
+      icon: 'none'
+    })
+    return
+  }
+
+  // 跳转到生成页面，携带分享码参数
+  uni.navigateTo({
+    url: `/pages/generate/generate?shareCode=${encodeURIComponent(codeStr)}`
+  })
+}
 
 // 高级选项相关数据
 const showAdvancedPicker = ref(false);
@@ -306,6 +402,9 @@ const startGenerate = () => {
     });
     return;
   }
+
+  // 增加转换次数
+  incrementConversionCount()
 
   uni.navigateTo({
     url: `/pages/generate/generate?image=${encodeURIComponent(

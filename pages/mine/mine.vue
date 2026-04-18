@@ -56,11 +56,11 @@
 				<!-- 统计数据行 -->
 				<view class="stats-row">
 					<view class="stat-item">
-						<text class="stat-number">24</text>
+						<text class="stat-number">{{ conversionCount }}</text>
 						<text class="stat-label">转换次数</text>
 					</view>
 					<view class="stat-item">
-						<text class="stat-number">8</text>
+						<text class="stat-number">{{ creationCount }}</text>
 						<text class="stat-label">创作次数</text>
 					</view>
 					<view class="stat-item">
@@ -142,6 +142,7 @@
 </template>
 
 <script setup>
+import { getDisplayStats } from '@/utils/statsManager.js'
 import {
 	onShow
 } from '@dcloudio/uni-app'
@@ -166,6 +167,8 @@ const userInfo = ref({
 // 统计数据
 const historyCount = ref(0)
 const collectionCount = ref(0)
+const conversionCount = ref(0)
+const creationCount = ref(0)
 
 // uni-id-co 云对象
 const uniIdCo = uniCloud.importObject('uni-id-co')
@@ -189,6 +192,7 @@ onMounted(() => {
 onShow(() => {
 	// 每次进入页面时检查登录状态
 	checkLoginStatus()
+	loadUserStats()
 })
 
 // 检查登录状态（从全局获取）
@@ -200,8 +204,11 @@ const checkLoginStatus = () => {
 		userInfo.value = loginStatus.userInfo
 		isLoggedIn.value = true
 		loadStats()
+		// loadUserStats()
 	} else {
 		isLoggedIn.value = false
+		conversionCount.value = 0
+		creationCount.value = 0
 		userInfo.value = {
 			avatarUrl: '',
 			nickName: '',
@@ -238,6 +245,14 @@ const loadStats = () => {
 	} catch (e) {
 		console.error('加载统计数据失败:', e)
 	}
+}
+
+// 加载用户统计数据（转换次数、创作次数）
+const loadUserStats = async () => {
+	// 直接从本地存储读取统计数据（App.vue onLaunch 已同步云端数据）
+	const stats = getDisplayStats()
+	conversionCount.value = stats.conversion_count
+	creationCount.value = stats.creation_count
 }
 
 // 跳转到历史记录

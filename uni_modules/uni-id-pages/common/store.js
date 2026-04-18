@@ -1,94 +1,102 @@
-import pagesJson from '@/pages.json'
-import config from '@/uni_modules/uni-id-pages/config.js'
+import pagesJson from '@/pages.json';
+import config from '@/uni_modules/uni-id-pages/config.js';
 
 const uniIdCo = uniCloud.importObject("uni-id-co")
 const db = uniCloud.database();
 const usersTable = db.collection('uni-id-users')
 
-let hostUserInfo = uni.getStorageSync('uni-id-pages-userInfo')||{}
-
+let hostUserInfo = uni.getStorageSync('uni-id-pages-userInfo') || {}
+const token = uni.getStorageSync('uni_id_token') || ''
+const tokenExpired = uni.getStorageSync('uni_id_token_expired') || 0
+const isTokenValid = token && tokenExpired && tokenExpired > Date.now()
+console.log("isTokenValid", isTokenValid)
 const data = {
 	userInfo: hostUserInfo,
-	hasLogin: Object.keys(hostUserInfo).length != 0
+	hasLogin: isTokenValid
 }
 
 // 定义 mutations, 修改属性
 export const mutations = {
 	// data不为空，表示传递要更新的值(注意不是覆盖是合并),什么也不传时，直接查库获取更新
-	async updateUserInfo(data = false) {
+	async updateUserInfo(data = false, isShowToast = true) {
 		if (data) {
 			usersTable.where('_id==$env.uid').update(data).then(e => {
 				// console.log(e);
 				if (e.result.updated) {
-					uni.showToast({
-						title: "更新成功",
-						icon: 'none',
-						duration: 3000
-					});
+					if (isShowToast) {
+						uni.showToast({
+							title: "更新成功",
+							icon: 'none',
+							duration: 3000
+						});
+					}
+
 					this.setUserInfo(data)
 				} else {
-					uni.showToast({
-						title: "没有改变",
-						icon: 'none',
-						duration: 3000
-					});
+					if (isShowToast) {
+						uni.showToast({
+							title: "没有改变",
+							icon: 'none',
+							duration: 3000
+						});
+					}
 				}
 			})
 
 		} else {
-      // 不等待联网查询，立即更新用户_id确保store.userInfo中的_id是最新的
-      const _id = uniCloud.getCurrentUserInfo().uid
-      this.setUserInfo({_id},{cover:true})
-      // 查库获取用户信息，更新store.userInfo
+			// 不等待联网查询，立即更新用户_id确保store.userInfo中的_id是最新的
+			const _id = uniCloud.getCurrentUserInfo().uid
+			this.setUserInfo({ _id }, { cover: true })
+			// 查库获取用户信息，更新store.userInfo
 			const uniIdCo = uniCloud.importObject("uni-id-co", {
 				customUI: true
 			})
 			try {
 				let res = await usersTable.where("'_id' == $cloudEnv_uid")
-					.field('mobile,nickname,username,email,avatar_file')
+					.field('mobile,nickname,username,email,avatar_file,conversion_count,creation_count')
 					.get()
 
 				const realNameRes = await uniIdCo.getRealNameInfo()
 
-				// console.log('fromDbData',res.result.data);
+				console.log('fromDbData', res.result.data);
 				this.setUserInfo({
 					...res.result.data[0],
 					realNameAuth: realNameRes
 				})
 			} catch (e) {
-				this.setUserInfo({},{cover:true})
+				this.setUserInfo({}, { cover: true })
 				console.error(e.message, e.errCode);
 			}
 		}
 	},
-	setUserInfo(data, {cover}={cover:false}) {
+	setUserInfo(data, { cover } = { cover: false }) {
 		// console.log('set-userInfo', data);
-		let userInfo = cover?data:Object.assign(store.userInfo,data)
-		store.userInfo = Object.assign({},userInfo)
+		let userInfo = cover ? data : Object.assign(store.userInfo, data)
+		store.userInfo = Object.assign({}, userInfo)
 		store.hasLogin = Object.keys(store.userInfo).length != 0
-		// console.log('store.userInfo', store.userInfo);
+		console.log('store.userInfo', store.userInfo);
 		uni.setStorageSync('uni-id-pages-userInfo', store.userInfo)
 		return data
 	},
 	async logout() {
 		// 1. 已经过期就不需要调用服务端的注销接口	2.即使调用注销接口失败，不能阻塞客户端
-		if(uniCloud.getCurrentUserInfo().tokenExpired > Date.now()){
-			try{
+		if (uniCloud.getCurrentUserInfo().tokenExpired > Date.now()) {
+			try {
 				await uniIdCo.logout()
-			}catch(e){
+			} catch (e) {
 				console.error(e);
 			}
 		}
 		uni.removeStorageSync('uni_id_token');
 		uni.setStorageSync('uni_id_token_expired', 0)
-    this.setUserInfo({},{cover:true})
-    uni.$emit('uni-id-pages-logout')
+		this.setUserInfo({}, { cover: true })
+		uni.$emit('uni-id-pages-logout')
 		uni.redirectTo({
-			url: `/${pagesJson.uniIdRouter && pagesJson.uniIdRouter.loginPage ? pagesJson.uniIdRouter.loginPage: 'uni_modules/uni-id-pages/pages/login/login-withoutpwd'}`,
+			url: `/${pagesJson.uniIdRouter && pagesJson.uniIdRouter.loginPage ? pagesJson.uniIdRouter.loginPage : 'uni_modules/uni-id-pages/pages/login/login-withoutpwd'}`,
 		});
 	},
-	loginBack (e = {}) {
-		const {uniIdRedirectUrl = ''} = e
+	loginBack(e = {}) {
+		const { uniIdRedirectUrl = '' } = e
 		let delta = 0; //判断需要返回几层
 		let pages = getCurrentPages();
 		// console.log(pages);
@@ -103,9 +111,9 @@ export const mutations = {
 				url: uniIdRedirectUrl,
 				fail: (err1) => {
 					uni.switchTab({
-						url:uniIdRedirectUrl,
+						url: uniIdRedirectUrl,
 						fail: (err2) => {
-							console.log(err1,err2)
+							console.log(err1, err2)
 						}
 					})
 				}
@@ -129,11 +137,11 @@ export const mutations = {
 			delta
 		})
 	},
-	loginSuccess(e = {}){
+	loginSuccess(e = {}) {
 		const {
 			showToast = true, toastText = '登录成功', autoBack = true, uniIdRedirectUrl = '', passwordConfirmed
 		} = e
-		console.log({toastText,autoBack});
+		console.log({ toastText, autoBack });
 		if (showToast) {
 			uni.showToast({
 				title: toastText,
@@ -141,14 +149,14 @@ export const mutations = {
 				duration: 3000
 			});
 		}
-    // 异步调用（更新用户信息）防止获取头像等操作阻塞页面返回
+		// 异步调用（更新用户信息）防止获取头像等操作阻塞页面返回
 		this.updateUserInfo()
 
 		uni.$emit('uni-id-pages-login-success')
 
 		if (config.setPasswordAfterLogin && !passwordConfirmed) {
 			return uni.redirectTo({
-				url: uniIdRedirectUrl ? `/uni_modules/uni-id-pages/pages/userinfo/set-pwd/set-pwd?uniIdRedirectUrl=${uniIdRedirectUrl}&loginType=${e.loginType}`: `/uni_modules/uni-id-pages/pages/userinfo/set-pwd/set-pwd?loginType=${e.loginType}`,
+				url: uniIdRedirectUrl ? `/uni_modules/uni-id-pages/pages/userinfo/set-pwd/set-pwd?uniIdRedirectUrl=${uniIdRedirectUrl}&loginType=${e.loginType}` : `/uni_modules/uni-id-pages/pages/userinfo/set-pwd/set-pwd?loginType=${e.loginType}`,
 				fail: (err) => {
 					console.log(err)
 				}
@@ -156,14 +164,14 @@ export const mutations = {
 		}
 
 		if (autoBack) {
-			this.loginBack({uniIdRedirectUrl})
+			this.loginBack({ uniIdRedirectUrl })
 		}
 	}
 
 }
 
 // #ifdef VUE2
-import Vue from 'vue'
+import Vue from 'vue';
 // 通过Vue.observable创建一个可响应的对象
 export const store = Vue.observable(data)
 // #endif
@@ -171,7 +179,7 @@ export const store = Vue.observable(data)
 // #ifdef VUE3
 import {
 	reactive
-} from 'vue'
+} from 'vue';
 // 通过Vue.observable创建一个可响应的对象
 export const store = reactive(data)
 // #endif

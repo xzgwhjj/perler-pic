@@ -26,6 +26,26 @@
 				"write": "'CREATE_UNI_ID_USERS' in auth.permission || 'UPDATE_UNI_ID_USERS' in auth.permission"
 			}
 		},
+		"conversion_count": {
+			"bsonType": "int",
+			"description": "转换次数",
+			"title": "转换次数",
+			"default": 0,
+			"permission": {
+				"read": true,
+				"write": "doc._id == auth.uid || 'CREATE_UNI_ID_USERS' in auth.permission || 'UPDATE_UNI_ID_USERS' in auth.permission"
+			}
+		},
+		"creation_count": {
+			"bsonType": "int",
+			"description": "创建次数",
+			"title": "创建次数",
+			"default": 0,
+			"permission": {
+				"read": true,
+				"write": "doc._id == auth.uid || 'CREATE_UNI_ID_USERS' in auth.permission || 'UPDATE_UNI_ID_USERS' in auth.permission"
+			}
+		},
 		"avatar": {
 			"bsonType": "string",
 			"description": "头像地址",
@@ -330,7 +350,7 @@
 			},
 			"title": "角色"
 		},
-		"tags":{
+		"tags": {
 			"bsonType": "array",
 			"description": "用户标签",
 			"permission": {
