@@ -1,8 +1,8 @@
 <template>
 	<view class="page-container" :class="{ 'no-scroll': isFullscreen }">
 		<!-- 全屏遮罩：完全阻止任何操作穿透 -->
-		<view v-if="isFullscreen || showExportSettingsDialog" class="fullscreen-overlay" @touchstart.prevent
-			@touchmove.prevent @touchend.prevent @click.prevent></view>
+		<view v-if="isFullscreen || showExportSettingsDialog || showExportPreviewDialog" class="fullscreen-overlay"
+			@touchstart.prevent @touchmove.prevent @touchend.prevent @click.prevent></view>
 
 		<!-- 恢复浮窗按钮 -->
 		<view v-if="isFloatingMinimized && !showExportSettingsDialog" class="floating-restore-btn"
@@ -63,8 +63,8 @@
 					<movable-view :scale="true" direction="all" :x="panX" :y="panY" :scale-min="0.2" :inertia="false"
 						:out-of-bounds="false" :damping="100" :scale-value="scaleValue" class="canvas-drag-container"
 						:style="dragContainerStyle" @scale="onScale" @change="onChange" style="background-color:aqua">
-						<canvas type="2d" id="mainCanvas" class="pd-canvas" :style="canvasStyle"
-							style="background-color:bisque" />
+						<canvas type="2d" id="mainCanvas" class="export-canvas" :style="canvasStyle"
+							style="background-color:bisque;position: fixed;left: 9999px;" />
 					</movable-view>
 				</movable-area>
 				<view class="zoom-controls" v-if="isFullscreen">
@@ -384,6 +384,97 @@
 						</view>
 					</view>
 
+					<!-- 保留原图（分享码时显示） -->
+					<view class="export-option-group" v-if="exportSettings.addShareCode">
+						<view class="show-item">
+							<text class="group-title">保留原图</text>
+							<view class="switch-container">
+								<switch :checked="exportSettings.saveOriginalImage"
+									@change="exportSettings.saveOriginalImage = $event.detail.value" color="#bedbff"
+									style="transform:scale(0.8)" />
+							</view>
+						</view>
+						<text class="option-hint" v-if="exportSettings.saveOriginalImage">原图将存入云端，方便导入时还原</text>
+					</view>
+
+					<!-- 作品信息（分享码时显示） -->
+					<view class="export-option-group" v-if="exportSettings.addShareCode">
+						<text class="group-title">作品信息</text>
+
+						<!-- 作品标题 -->
+						<view class="input-item">
+							<text class="input-label">标题</text>
+							<input class="input-field" v-model="exportSettings.title" placeholder="给作品起个名字"
+								maxlength="100" />
+						</view>
+
+						<!-- 作品描述（同步到发现时显示） -->
+						<view class="input-item" v-if="exportSettings.shareToDiscovery">
+							<text class="input-label">描述</text>
+							<textarea class="input-textarea" v-model="exportSettings.description" placeholder="描述一下你的作品"
+								maxlength="500" :rows="3"></textarea>
+						</view>
+
+						<!-- 标签（同步到发现时显示） -->
+						<view class="input-item" v-if="exportSettings.shareToDiscovery">
+							<text class="input-label">标签</text>
+							<input class="input-field" v-model="exportSettings.tagsInput"
+								placeholder="多个标签用逗号分隔，如: 卡通,可爱,粉色" maxlength="200" />
+						</view>
+
+						<!-- 是否公开 -->
+						<view class="show-item" style="margin-top: 20rpx;">
+							<text class="group-title">公开分享</text>
+							<view class="switch-container">
+								<switch :checked="exportSettings.isPublic"
+									@change="exportSettings.isPublic = $event.detail.value" color="#bedbff"
+									style="transform:scale(0.8)" />
+							</view>
+						</view>
+						<text class="option-hint" v-if="exportSettings.isPublic">其他人可通过分享码查看此作品</text>
+						<text class="option-hint" v-else>仅自己可通过分享码查看</text>
+
+						<!-- 永久分享 -->
+						<view class="show-item" style="margin-top: 20rpx;">
+							<text class="group-title">永久分享</text>
+							<view class="switch-container">
+								<switch :checked="exportSettings.isPermanent"
+									@change="exportSettings.isPermanent = $event.detail.value" color="#bedbff"
+									style="transform:scale(0.8)" />
+							</view>
+						</view>
+						<text class="option-hint" v-if="exportSettings.isPermanent">分享码永不过期</text>
+						<text class="option-hint" v-else>分享码将在指定时间后失效</text>
+
+						<!-- 过期时间选择（非永久时显示） -->
+						<view class="show-item" v-if="!exportSettings.isPermanent" style="margin-top: 16rpx;">
+							<text class="input-label">过期时间</text>
+							<picker mode="selector" :value="expireDaysIndex" :range="expireDaysOptions"
+								@change="onExpireDaysChange">
+								<view class="picker-field">
+									<text>{{ expireDaysOptions[expireDaysIndex] }}</text>
+									<text class="picker-arrow">▼</text>
+								</view>
+							</picker>
+						</view>
+					</view>
+
+					<!-- 同步到发现 -->
+					<view class="export-option-group">
+						<view class="show-item">
+							<text class="group-title">同步到发现</text>
+							<view class="switch-container">
+								<switch :checked="exportSettings.shareToDiscovery"
+									@change="exportSettings.shareToDiscovery = $event.detail.value" color="#bedbff"
+									style="transform:scale(0.8)" />
+							</view>
+						</view>
+						<text class="option-hint" v-if="exportSettings.shareToDiscovery">
+							作品将同步到发现社区，供其他用户浏览和导入
+						</text>
+						<text class="option-hint" v-else>关闭后作品不会出现在发现社区</text>
+					</view>
+
 					<!-- 记住设置 -->
 					<view class="export-option-group remember-settings" v-if="!isSetting">
 						<view class="checkbox-item"
@@ -396,8 +487,35 @@
 				</scroll-view>
 				<view class="export-settings-footer">
 					<button class="export-btn secondary" @click="cancelExportSettings">取消</button>
-					<button class="export-btn primary" @click="performDownload">{{ isSetting ? '保存设置' : '确定导出'
+					<button class="export-btn primary" @click="performDownload">{{ isSetting ? '保存设置' : '预览导出图'
 					}}</button>
+				</view>
+			</view>
+		</view>
+
+		<!-- 导出预览弹框 -->
+		<view v-if="showExportPreviewDialog" class="export-preview-dialog">
+			<view class="export-preview-container">
+				<view class="export-preview-header">
+					<text class="export-preview-title">导出预览</text>
+					<text class="export-preview-close" @click="closeExportPreview(false)">✕</text>
+				</view>
+				<scroll-view class="export-preview-content" scroll-y>
+					<!-- 加载中 -->
+					<view v-if="isGeneratingPreview" class="preview-error preview-loading">
+						<text>正在生成预览...</text>
+					</view>
+					<!-- 预览图 -->
+					<image v-else-if="exportPreviewImage" class="preview-image" :src="exportPreviewImage"
+						mode="widthFix" @click="previewFullImage(exportPreviewImage)" />
+					<!-- 预览失败 -->
+					<view v-else class="preview-error">
+						<text>预览生成失败，请重试</text>
+					</view>
+				</scroll-view>
+				<view class="export-preview-footer">
+					<button class="export-btn secondary" @click="closeExportPreview(true)">重新选择</button>
+					<button class="export-btn primary" @click="saveExportImage">保存图片</button>
 				</view>
 			</view>
 		</view>
@@ -409,7 +527,8 @@
 		<canvas type="2d" id="processCanvas" class="hidden-canvas" />
 
 		<!-- 导出专用Canvas（不占用布局空间） -->
-		<canvas type="2d" id="exportCanvas" class="export-canvas" :style="{ width: exportCanvasWidth + 'px', height: exportCanvasHeight + 'px' }" />
+		<canvas type="2d" id="exportCanvas" class="export-canvas"
+			:style="{ width: exportCanvasWidth + 'px', height: exportCanvasHeight + 'px' }" />
 
 		<!-- 二维码专用Canvas -->
 		<canvas type="2d" id="qrCodeCanvas" class="qr-canvas" :style="{ width: '150px', height: '150px' }" />
@@ -421,13 +540,15 @@ import {
 	convertToPerlerStyle
 } from '@/core/perlerStyleConverter.js'
 import mardColors from '@/static/colors/mard-colors.json'
+import UQRCode from '@/uni_modules/Sansnn-uQRCode/js_sdk/uqrcode/uqrcode.js'
+import {
+	store
+} from '@/uni_modules/uni-id-pages/common/store.js'
 import {
 	flattenColorData
 } from '@/utils/colorUtils.js'
 import {
-	createShareCodeData,
 	decodeShareCode,
-	encodeShareCode,
 	generateShareCodeDisplay,
 	restoreFromShareCode
 } from '@/utils/shareCode.js'
@@ -439,7 +560,8 @@ import {
 	onMounted,
 	ref
 } from 'vue'
-import UQRCode from '@/uni_modules/Sansnn-uQRCode/js_sdk/uqrcode/uqrcode.js'
+
+const app = getApp()
 
 // Canvas显示尺寸（绘制像素）- 10倍放大绘制：6000px绘制，600rpx显示
 const CANVAS_DISPLAY_SIZE = 6000
@@ -494,6 +616,10 @@ const screenWidthRpx = 750 // 微信小程序固定：屏幕宽度=750rpx
 const screenHeightRpx = systemInfo.windowHeight * (750 / systemInfo.windowWidth) // 屏幕高度(rpx)
 const px2rpx = 750 / systemInfo.windowWidth // px转rpx系数
 
+// 分享码
+let tempShareCode = '' // 保存临时分享码，用于失败时删除
+let tempShareId = '' // 保存临时分享码ID
+
 // 核心转换设置 - 拼豆最优默认值
 const showSettings = ref(true)
 const selectedBrand = ref('mard') // 拼豆品牌：固定Mard，和参考图色号完全对齐
@@ -510,7 +636,8 @@ const showBrandPicker = ref(false)
 const showBoardPicker = ref(false)
 const showImageTypePicker = ref(false)
 const showModePicker = ref(false)
-const imagePath = ref('')
+const imagePath = ref('') // 本地图片路径
+const originalImage = ref(null) // cdn图片路径
 const canvasReady = ref(false)
 const colorStats = ref([])
 const isFullscreen = ref(false)
@@ -558,54 +685,274 @@ const exportSettings = ref({
 	watermarkType: 'fullRepeat', // 水印
 	addShadow: false, // 是否添加阴影
 	addShareCode: true, // 是否添加分享码
-	rememberSettings: false // 记住设置，下次不再弹框
+	rememberSettings: false, // 记住设置，下次不再弹框
+	saveOriginalImage: false, // 是否保留原图（分享码时有效）
+	isPublic: true, // 是否公开（分享码时有效）
+	isPermanent: true, // 是否永久分享（分享码时有效）
+	expireDays: 7, // 过期天数（非永久时有效）
+	shareToDiscovery: false, // 是否同步到发现社区
+	// 作品信息（分享码/发现时使用）
+	title: '', // 作品标题
+	description: '', // 作品描述
+	tagsInput: '' // 标签输入（逗号分隔）
 })
+
+// 预览弹窗
+const showExportPreviewDialog = ref(false)
+const exportPreviewImage = ref('') // 预览图URL
+const isGeneratingPreview = ref(false) // 是否正在生成预览
 
 // 分享码相关
 const currentShareCode = ref('') // 当前分享码
 const currentShareCodeData = ref(null) // 当前分享码数据
+const currentShareId = ref('') // 当前分享码数据库ID
+
+// 过期天数选项
+const expireDaysOptions = ['7天', '14天', '30天', '90天', '180天']
+const expireDaysValues = [7, 14, 30, 90, 180]
+const expireDaysIndex = ref(0) // 默认7天
+const onExpireDaysChange = (e) => {
+	expireDaysIndex.value = e.detail.value
+	exportSettings.value.expireDays = expireDaysValues[e.detail.value]
+}
+
+// 生成 canvas_data（用于云端存储）
+const generateCanvasData = () => {
+	if (!perlerResultData.value) return null
+
+	const {
+		mappedData,
+		colorCounts,
+		gridSize
+	} = perlerResultData.value
+	const {
+		N,
+		M
+	} = gridSize
+
+	// 提取所有非透明像素点
+	const beads = []
+	for (let y = 0; y < M; y++) {
+		for (let x = 0; x < N; x++) {
+			const pixel = mappedData[y][x]
+			// 跳过透明像素
+			if (pixel.isExternal || pixel.key === 'TRANSPARENT') continue
+			beads.push({
+				x,
+				y,
+				color: pixel.color
+			})
+		}
+	}
+
+	// 提取使用的颜色hex列表
+	const palette = Object.values(colorCounts).map(c => c.color)
+
+	return {
+		width: N,
+		height: M,
+		beads,
+		palette
+	}
+}
+
+// 调用云函数创建分享码记录
+const createShareCodeToCloud = async () => {
+	const canvasData = generateCanvasData()
+	if (!canvasData) {
+		console.error('无法生成canvas_data')
+		return null
+	}
+	
+	// 上传原图到云存储，获取URL
+	if(app.isEmpty(originalImage.value) && exportSettings.value.saveOriginalImage){
+		try{
+			//上传到服务器
+			let cloudPath = store.userInfo._id + '' + Date.now()
+			let {
+				fileID
+			} = await uniCloud.uploadFile({
+				filePath:imagePath.value,
+				cloudPath,
+				fileType: "image"
+			});
+			console.log('原图上传成功，fileID:', fileID)
+			originalImage.value = fileID
+		}catch(e){
+			console.error(e);
+		}
+	}
+
+	// 计算过期时间
+	const expireDate = exportSettings.value.isPermanent ?
+		null :
+		new Date(Date.now() + exportSettings.value.expireDays * 24 * 60 * 60 * 1000)
+
+	const cloudData = {
+		canvas_data: canvasData,
+		settings: {
+			brand: selectedBrand.value,
+			colorMergeThreshold: colorMergeThreshold.value,
+			conversionMode: pixelationMode.value
+		},
+		metadata: {
+			title: exportSettings.value.title || ''
+		},
+		preview_image: exportPreviewImage.value || '',
+		// 只有勾选了保留原图才存入
+		original_image: exportSettings.value.saveOriginalImage ? app.isEmpty(originalImage.value) ? imagePath.value : originalImage.value  : '',
+		// 是否公开
+		is_public: exportSettings.value.isPublic,
+		// 过期时间
+		expire_date: expireDate
+	}
+	console.log('上传云数据：', cloudData)
+
+	try {
+		const res = await uniCloud.callFunction({
+			name: 'share-code',
+			data: {
+				action: 'create',
+				data: cloudData
+			}
+		})
+
+		console.log('云函数返回:', res)
+
+		if (res.result.code === 0) {
+			currentShareId.value = res.result.data._id
+			currentShareCode.value = res.result.data.share_code
+			console.log('云端分享码创建成功:', res.result.data)
+			return res.result.data
+		} else {
+			console.error('云端分享码创建失败:', res.result.message)
+			return null
+		}
+	} catch (e) {
+		console.error('调用云函数失败:', e)
+		return null
+	}
+}
+
+// 更新分享码（用最新数据）
+const updateShareCodeToCloud = async () => {
+	if (!tempShareId) return false
+
+	const canvasData = generateCanvasData()
+	if (!canvasData) {
+		console.error('无法生成canvas_data')
+		return false
+	}
+
+	// 上传图片到云存储
+	let previewImageUrl = ''
+	let originalImageUrl = ''
+
+	// 上传预览图
+	if (exportPreviewImage.value) {
+		try {
+			let previewCloudPath = `preview_${store.userInfo._id}_${Date.now()}`
+			let previewRes = await uniCloud.uploadFile({
+				filePath: exportPreviewImage.value,
+				cloudPath: previewCloudPath,
+				fileType: "image"
+			})
+			previewImageUrl = previewRes.fileID
+			console.log('预览图上传成功:', previewImageUrl)
+		} catch (e) {
+			console.error('预览图上传失败:', e)
+		}
+	}
+
+	// 上传原图
+	if (exportSettings.value.saveOriginalImage && imagePath.value) {
+		try {
+			// 如果原图还没上传过，直接用 fileID
+			if (app.isEmpty(originalImage.value)) {
+				let originalCloudPath = `original_${store.userInfo._id}_${Date.now()}.jpg`
+				let originalRes = await uniCloud.uploadFile({
+					filePath: imagePath.value,
+					cloudPath: originalCloudPath,
+					fileType: "image"
+				})
+				originalImageUrl = originalRes.fileID
+				originalImage.value = originalImageUrl
+				console.log('原图上传成功:', originalImageUrl)
+			}
+		} catch (e) {
+			console.error('原图上传失败:', e)
+		}
+	}
+// 计算过期时间
+	const expireDate = exportSettings.value.isPermanent ?
+		null :
+		new Date(Date.now() + exportSettings.value.expireDays * 24 * 60 * 60 * 1000)
+	const cloudData = {
+		_id: tempShareId,
+		canvas_data: canvasData,
+		settings: {
+			brand: selectedBrand.value,
+			colorMergeThreshold: colorMergeThreshold.value,
+			conversionMode: pixelationMode.value
+		},
+		metadata: {
+			title: exportSettings.value.title || ''
+		},
+		preview_image: app.isEmpty(previewImageUrl) ? exportPreviewImage.value || '': previewImageUrl,
+		original_image: exportSettings.value.saveOriginalImage ? app.isEmpty(originalImage.value) ? imagePath.value : originalImage.value  : '',
+		is_public: exportSettings.value.isPublic,
+		status: 1,  // 更新时直接设为正常状态
+		expire_date: expireDate
+	}
+
+	try {
+		const res = await uniCloud.callFunction({
+			name: 'share-code',
+			data: {
+				action: 'create',
+				data: cloudData
+			}
+		})
+		return res.result.code === 0
+	} catch (e) {
+		console.error('更新分享码失败:', e)
+		return false
+	}
+}
+
+// 确认分享码（转为正常状态）
+const confirmShareCodeToCloud = async (shareCode) => {
+	if (!shareCode) return false
+
+	try {
+		const res = await uniCloud.callFunction({
+			name: 'share-code',
+			data: {
+				action: 'confirm',
+				data: {
+					shareCode
+				}
+			}
+		})
+		return res.result.code === 0
+	} catch (e) {
+		console.error('确认分享码失败:', e)
+		return false
+	}
+}
 
 // 导出专用Canvas尺寸（动态计算）
 const exportCanvasWidth = ref(1000)
 const exportCanvasHeight = ref(1000)
 
 // 导出图片质量设置
-const EXPORT_SCALE = 3 // 导出缩放倍数
+const EXPORT_SCALE = 4 // 导出缩放倍数（4K高清）
 
 // 导出相关常量
-const EXPORT_PADDING = 40 // 导出边距
-const EXPORT_FONT_SIZE = 32 // 导出字体大小
-const SHARE_CODE_SIZE = 150 // 分享码尺寸
-
-// 生成当前图纸的分享码
-const generateCurrentShareCode = () => {
-	// 准备分享码数据
-	const shareData = createShareCodeData({
-		imagePath: imagePath.value,
-		imageAspectRatio: imageAspectRatio.value,
-		brand: selectedBrand.value,
-		boardSize: selectedBoardSize.value,
-		gridColumns: gridColumns.value,
-		gridRows: gridRows.value,
-		pixelationMode: pixelationMode.value,
-		colorMergeThreshold: colorMergeThreshold.value,
-		showBoard: showBoard.value,
-		showColorCode: showColorCode.value,
-		colorData: colorStats.value,
-		exportSettings: exportSettings.value,
-		authorName: authorName.value,
-		watermarkText: watermarkText.value
-	})
-	
-	// 编码
-	const encoded = encodeShareCode(shareData)
-	if (encoded) {
-		currentShareCode.value = encoded
-		currentShareCodeData.value = shareData
-		return encoded
-	}
-	return null
-}
+const EXPORT_PADDING = 20 // 导出边距（上、左、右）
+const EXPORT_FONT_SIZE = 28 // 导出字体大小
+const SHARE_CODE_SIZE = 100 // 分享码区域高度
+const QR_CODE_SIZE = 300 // 二维码尺寸
 
 // 获取分享码显示文本
 const getShareCodeDisplay = () => {
@@ -639,7 +986,7 @@ const copyShareCode = () => {
 // 从分享码还原图纸
 const restoreFromShareCodeData = (codeData) => {
 	const params = restoreFromShareCode(codeData)
-	
+
 	// 恢复所有参数
 	imagePath.value = params.imagePath
 	imageAspectRatio.value = params.imageAspectRatio
@@ -652,31 +999,49 @@ const restoreFromShareCodeData = (codeData) => {
 	showBoard.value = params.showBoard
 	showColorCode.value = params.showColorCode
 	colorStats.value = params.colorData || []
-	
+
 	// 恢复导出配置
 	if (params.exportSettings) {
-		exportSettings.value = { ...exportSettings.value, ...params.exportSettings }
+		exportSettings.value = {
+			...exportSettings.value,
+			...params.exportSettings
+		}
 	}
 	authorName.value = params.authorName
 	watermarkText.value = params.watermarkText
-	
+
 	// 重新生成图纸
 	regenerate()
 }
 
-const separateImagesOptions = [
-	{ id: "merge", name: "合并导出" },
-	{ id: "split", name: "分开导出" }
+const separateImagesOptions = [{
+	id: "merge",
+	name: "合并导出"
+},
+	// {
+	// 	id: "split",
+	// 	name: "分开导出"
+	// }
 ];
 
-const layoutDirectionOptions = [
-	{ id: 'vertical', name: '纵向' },
-	{ id: 'horizontal', name: '横向' }
+const layoutDirectionOptions = [{
+	id: 'vertical',
+	name: '纵向'
+},
+{
+	id: 'horizontal',
+	name: '横向'
+}
 ];
 
-const watermarkOptions = [
-	{ id: 'oneCenter', name: '单个居中' },
-	{ id: 'fullRepeat', name: '多列重复' }
+const watermarkOptions = [{
+	id: 'oneCenter',
+	name: '单个居中'
+},
+{
+	id: 'fullRepeat',
+	name: '多列重复'
+}
 ];
 
 const onShowAuthorChange = (e) => {
@@ -685,6 +1050,9 @@ const onShowAuthorChange = (e) => {
 
 const onAddWatermarkChange = (e) => {
 	exportSettings.value.addWatermark = e.detail.value;
+	if (app.isEmpty(watermarkText.value)) {
+		watermarkText.value = authorName.value; // 水印文本默认使用作者名
+	}
 }
 
 const onAddShadowChange = (e) => {
@@ -791,7 +1159,11 @@ const onScale = (event) => {
 
 // 移动事件
 const onChange = (event) => {
-	const { x, y, source } = event.detail
+	const {
+		x,
+		y,
+		source
+	} = event.detail
 	console.log("移动位置:", x, y)
 	console.log("事件来源:", source)
 }
@@ -845,23 +1217,47 @@ const brands = [{
 ]
 
 // 拼豆板子尺寸选项
-const boardSizeOptions = [
-	{ size: 14, name: '14×14钉' },
-	{ size: 52, name: '52×52钉' },
-	{ size: 104, name: '104×104钉' }
+const boardSizeOptions = [{
+	size: 14,
+	name: '14×14钉'
+},
+{
+	size: 52,
+	name: '52×52钉'
+},
+{
+	size: 104,
+	name: '104×104钉'
+}
 ]
 
 // 图像类型选项
-const imageTypeOptions = [
-	{ id: 'cartoon', name: '卡通/动漫' },
-	{ id: 'photo', name: '照片' },
-	{ id: 'icon', name: '图标/Logo' },
-	{ id: 'illustration', name: '插画' }
+const imageTypeOptions = [{
+	id: 'cartoon',
+	name: '卡通/动漫'
+},
+{
+	id: 'photo',
+	name: '照片'
+},
+{
+	id: 'icon',
+	name: '图标/Logo'
+},
+{
+	id: 'illustration',
+	name: '插画'
+}
 ]
 
-const modeOptions = [
-	{ id: 'dominant', name: '卡通' },
-	{ id: 'average', name: '图像' }
+const modeOptions = [{
+	id: 'dominant',
+	name: '卡通'
+},
+{
+	id: 'average',
+	name: '图像'
+}
 ]
 
 // 防抖定时器
@@ -929,7 +1325,7 @@ const dragContainerStyle = computed(() => {
 	const cols = gridColumns.value || 30
 	const rows = gridRows.value || 30
 	const maxSize = 3000 // 最长边固定尺寸
-	const padding = 60   // 四周内边距
+	const padding = 60 // 四周内边距
 
 	let widthRpx, heightRpx
 	if (isFloating.value) {
@@ -1116,7 +1512,10 @@ const getCanvasInstance = (canvasId) => {
 				if (res && res.length > 0 && res[0] && res[0].node) {
 					const canvas = res[0].node
 					const ctx = canvas.getContext('2d')
-					console.log(`✅ Canvas初始化成功: ${canvasId}`, { canvas, ctx })
+					console.log(`✅ Canvas初始化成功: ${canvasId}`, {
+						canvas,
+						ctx
+					})
 					resolve({
 						canvas,
 						ctx
@@ -1157,8 +1556,8 @@ const toggleFullscreen = () => {
 }
 
 // 缩放功能：基于 0.2 的初始缩放
-const MIN_SCALE = 0.2  // 最小缩放，让 3000rpx 画布适应 600rpx 容器
-const MAX_SCALE = 10   // 最大缩放，50 倍放大效果
+const MIN_SCALE = 0.2 // 最小缩放，让 3000rpx 画布适应 600rpx 容器
+const MAX_SCALE = 10 // 最大缩放，50 倍放大效果
 
 const zoomIn = () => {
 	const current = zoomLevel.value || MIN_SCALE
@@ -1344,7 +1743,10 @@ const fitCanvasToFloatingWindow = async () => {
 			const query = uni.createSelectorQuery().in(getCurrentPages()[getCurrentPages().length - 1])
 			await new Promise(resolve => {
 				query.select('#mainCanvas')
-					.fields({ node: true, size: true })
+					.fields({
+						node: true,
+						size: true
+					})
 					.exec((res) => {
 						console.log(`🔍 Canvas查询结果:`, JSON.stringify(res))
 						if (res && res[0] && res[0].width > 0 && res[0].height > 0) {
@@ -1375,12 +1777,17 @@ const fitCanvasToFloatingWindow = async () => {
 	const floatWinWidthPx = floatWinWidthRpx / px2rpx
 	const floatWinHeightPx = floatWinHeightRpx / px2rpx
 
-	console.log(`📐 浮窗可用区域: ${floatWinWidthRpx}×${floatWinHeightRpx}rpx (${floatWinWidthPx.toFixed(2)}×${floatWinHeightPx.toFixed(2)}px)`)
+	console.log(
+		`📐 浮窗可用区域: ${floatWinWidthRpx}×${floatWinHeightRpx}rpx (${floatWinWidthPx.toFixed(2)}×${floatWinHeightPx.toFixed(2)}px)`
+	)
 
 	// 获取Canvas实际尺寸
 	const query = uni.createSelectorQuery().in(getCurrentPages()[getCurrentPages().length - 1])
 	query.select('#mainCanvas')
-		.fields({ node: true, size: true })
+		.fields({
+			node: true,
+			size: true
+		})
 		.exec((res) => {
 			if (!res || !res[0]) {
 				console.error('❌ 无法获取Canvas尺寸')
@@ -1397,7 +1804,9 @@ const fitCanvasToFloatingWindow = async () => {
 			const scaleY = floatWinHeightPx / canvasHeightPx
 			const fitScale = Math.min(scaleX, scaleY, 1) // 最大缩放1倍
 
-			console.log(`🔢 缩放比例: scaleX=${scaleX.toFixed(3)}, scaleY=${scaleY.toFixed(3)}, fitScale=${fitScale.toFixed(3)}`)
+			console.log(
+				`🔢 缩放比例: scaleX=${scaleX.toFixed(3)}, scaleY=${scaleY.toFixed(3)}, fitScale=${fitScale.toFixed(3)}`
+			)
 
 			// 计算居中偏移（px）
 			const offsetX = (floatWinWidthPx - canvasWidthPx * fitScale) / 2
@@ -1411,8 +1820,12 @@ const fitCanvasToFloatingWindow = async () => {
 			panY.value = offsetY
 			console.log(`✅ 浮窗适配完成: zoomLevel=${zoomLevel.value}, panX=${panX.value}, panY=${panY.value}`)
 			console.log(`📍 movable-view 位置: x=${panX.value}px, y=${panY.value}px (相对于 movable-area 左上角)`)
-			console.log(`📐 movable-area 尺寸: ${floatWinWidthRpx}×${floatWinHeightRpx}rpx (${floatWinWidthPx.toFixed(2)}×${floatWinHeightPx.toFixed(2)}px)`)
-			console.log(`🎯 Canvas 缩放后尺寸: ${(canvasWidthPx * fitScale).toFixed(2)}×${(canvasHeightPx * fitScale).toFixed(2)}px`)
+			console.log(
+				`📐 movable-area 尺寸: ${floatWinWidthRpx}×${floatWinHeightRpx}rpx (${floatWinWidthPx.toFixed(2)}×${floatWinHeightPx.toFixed(2)}px)`
+			)
+			console.log(
+				`🎯 Canvas 缩放后尺寸: ${(canvasWidthPx * fitScale).toFixed(2)}×${(canvasHeightPx * fitScale).toFixed(2)}px`
+			)
 		})
 }
 
@@ -1428,11 +1841,16 @@ const centerMovableViewInFullscreen = async () => {
 	const query = uni.createSelectorQuery().in(getCurrentPages()[getCurrentPages().length - 1])
 
 	// 获取movable-area的尺寸
-	query.select('.canvas-container').fields({ size: true })
-	query.select('#mainCanvas').fields({ node: true, size: true })
+	query.select('.canvas-container').fields({
+		size: true
+	})
+	query.select('#mainCanvas').fields({
+		node: true,
+		size: true
+	})
 	query.exec((res) => {
-		const areaRes = res[0];    // 容器
-		const canvasRes = res[1];  // ✅ 你是对的！这就是真实Canvas
+		const areaRes = res[0]; // 容器
+		const canvasRes = res[1]; // ✅ 你是对的！这就是真实Canvas
 		if (!res || !areaRes || !canvasRes) {
 			console.error('❌ 无法获取 movable-area或者Canvas尺寸')
 			return
@@ -1463,7 +1881,9 @@ const centerMovableViewInFullscreen = async () => {
 		const scaleY = floatWinHeightPx / canvasHeightPx
 		const fitScale = Math.min(scaleX, scaleY, 1) // 最大缩放1倍
 
-		console.log(`🔢 缩放比例: scaleX=${scaleX.toFixed(3)}, scaleY=${scaleY.toFixed(3)}, fitScale=${fitScale.toFixed(3)}`)
+		console.log(
+			`🔢 缩放比例: scaleX=${scaleX.toFixed(3)}, scaleY=${scaleY.toFixed(3)}, fitScale=${fitScale.toFixed(3)}`
+		)
 
 		// 计算居中偏移（px）
 		const offsetX = (floatWinWidthRpx - canvasWidthPx) / 2
@@ -1480,8 +1900,12 @@ const centerMovableViewInFullscreen = async () => {
 		fullscreenY.value = panY.value
 		console.log(`✅ 全屏适配完成: zoomLevel=${zoomLevel.value}, panX=${panX.value}, panY=${panY.value}`)
 		console.log(`📍 movable-view 位置: x=${panX.value}px, y=${panY.value}px (相对于 movable-area 左上角)`)
-		console.log(`📐 movable-area 尺寸: ${floatWinWidthRpx}×${floatWinHeightRpx}rpx (${floatWinWidthPx.toFixed(2)}×${floatWinHeightPx.toFixed(2)}px)`)
-		console.log(`🎯 Canvas 缩放后尺寸: ${(canvasWidthPx * fitScale).toFixed(2)}×${(canvasHeightPx * fitScale).toFixed(2)}px`)
+		console.log(
+			`📐 movable-area 尺寸: ${floatWinWidthRpx}×${floatWinHeightRpx}rpx (${floatWinWidthPx.toFixed(2)}×${floatWinHeightPx.toFixed(2)}px)`
+		)
+		console.log(
+			`🎯 Canvas 缩放后尺寸: ${(canvasWidthPx * fitScale).toFixed(2)}×${(canvasHeightPx * fitScale).toFixed(2)}px`
+		)
 
 	})
 }
@@ -1499,11 +1923,15 @@ const centerCanvasInNormalMode = async () => {
 	const query = uni.createSelectorQuery().in(getCurrentPages()[getCurrentPages().length - 1])
 
 	// 获取 movable-area 的尺寸
-	query.select('.canvas-container').fields({ size: true })
-	query.select('#mainCanvas').fields({ size: true })
+	query.select('.canvas-container').fields({
+		size: true
+	})
+	query.select('#mainCanvas').fields({
+		size: true
+	})
 	query.exec((res) => {
-		const areaRes = res[0];    // 容器
-		const canvasRes = res[1];  // ✅ 你是对的！这就是真实Canvas
+		const areaRes = res[0]; // 容器
+		const canvasRes = res[1]; // ✅ 你是对的！这就是真实Canvas
 		if (!res || !areaRes || !canvasRes) {
 			console.error('❌ 无法获取 movable-area或者Canvas尺寸')
 			return
@@ -1511,8 +1939,8 @@ const centerCanvasInNormalMode = async () => {
 
 		console.log(`📐 movable-area-非全屏模式 尺寸: ${JSON.stringify(res)}`)
 
-		const areaWidthPx = areaRes.width   // 600rpx
-		const areaHeightPx = areaRes.height  // 600rpx
+		const areaWidthPx = areaRes.width // 600rpx
+		const areaHeightPx = areaRes.height // 600rpx
 
 		const paddingPx = 10 // 预留20px内边距
 
@@ -1532,7 +1960,9 @@ const centerCanvasInNormalMode = async () => {
 		const offsetY = (areaHeightPx - canvasHeightPx.toFixed(2)) / 2
 
 		console.log(`📐 movable-area: ${areaWidthPx.toFixed(2)}×${areaHeightPx.toFixed(2)}px`)
-		console.log(`🎨 Canvas: ${canvasWidthPx}×${canvasHeightPx}px, 缩放后: ${scaledWidth.toFixed(2)}×${scaledHeight.toFixed(2)}px`)
+		console.log(
+			`🎨 Canvas: ${canvasWidthPx}×${canvasHeightPx}px, 缩放后: ${scaledWidth.toFixed(2)}×${scaledHeight.toFixed(2)}px`
+		)
 		console.log(`📍 居中偏移: x=${offsetX.toFixed(2)}px, y=${offsetY.toFixed(2)}px`)
 
 		// 设置居中位置
@@ -1603,7 +2033,7 @@ const onFloatMove = (e) => {
 
 		lastFloatX.value = currentXRpx
 		lastFloatY.value = currentYRpx
-	}// 处理鼠标事件
+	} // 处理鼠标事件
 	else if (e.clientX !== undefined) {
 		const currentXRpx = e.clientX * px2rpx
 		const currentYRpx = e.clientY * px2rpx
@@ -1897,25 +2327,35 @@ const processImage = async () => {
 		console.log('📊 mainCanvas获取结果:', canvasRes)
 
 		if (!canvasRes || !canvasRes.canvas || !canvasRes.ctx) {
-			console.error('❌ 主Canvas初始化失败:', { canvasRes })
+			console.error('❌ 主Canvas初始化失败:', {
+				canvasRes
+			})
 			throw new Error(`主Canvas初始化失败: ${JSON.stringify(canvasRes)}`)
 		}
 
 		mainCanvas = canvasRes.canvas
 		mainCtx = canvasRes.ctx
-		console.log('✅ 主Canvas初始化成功:', { mainCanvas, mainCtx })
+		console.log('✅ 主Canvas初始化成功:', {
+			mainCanvas,
+			mainCtx
+		})
 
 		const processRes = await getCanvasInstance('processCanvas')
 		console.log('📊 processCanvas获取结果:', processRes)
 
 		if (!processRes || !processRes.canvas || !processRes.ctx) {
-			console.error('❌ 处理Canvas初始化失败:', { processRes })
+			console.error('❌ 处理Canvas初始化失败:', {
+				processRes
+			})
 			throw new Error(`处理Canvas初始化失败: ${JSON.stringify(processRes)}`)
 		}
 
 		processCanvas = processRes.canvas
 		processCtx = processRes.ctx
-		console.log('✅ 处理Canvas初始化成功:', { processCanvas, processCtx })
+		console.log('✅ 处理Canvas初始化成功:', {
+			processCanvas,
+			processCtx
+		})
 
 		console.log('🎨 开始 Perler-Beads 风格转换...')
 		console.log('图片路径:', imagePath.value)
@@ -1927,7 +2367,10 @@ const processImage = async () => {
 		const imgInfo = await uni.getImageInfo({
 			src: imagePath.value
 		})
-		const { width, height } = imgInfo
+		const {
+			width,
+			height
+		} = imgInfo
 		const displaySize = computedCanvasDisplaySize.value
 
 		console.log('原图尺寸:', width, 'x', height)
@@ -2015,8 +2458,16 @@ const processImage = async () => {
  * - Canvas 内部固定 22px 绘制，动态缩放（确保 Canvas ≤ 16384px）
  */
 function drawPerlerResult(result, colorPalette, showColorCode = true) {
-	const { mappedData, colorCounts, totalBeads, gridSize } = result
-	const { N, M } = gridSize
+	const {
+		mappedData,
+		colorCounts,
+		totalBeads,
+		gridSize
+	} = result
+	const {
+		N,
+		M
+	} = gridSize
 
 	// 固定格子大小 22px
 	const cellSize = 22
@@ -2300,7 +2751,11 @@ function kMeansColorCluster(pixelData, width, height, clusterCount, transparentM
 		const [r, g, b] = key.split(',').map(Number)
 		const saturation = Math.max(r, g, b) - Math.min(r, g, b)
 		const weight = (count / totalPixels) * 0.5 + (saturation / 255) * 0.5
-		return { rgb: [r, g, b], count, weight }
+		return {
+			rgb: [r, g, b],
+			count,
+			weight
+		}
 	}).sort((a, b) => b.weight - a.weight)
 
 	// 3. 初始化聚类中心，优先保留关键色
@@ -2321,7 +2776,9 @@ function kMeansColorCluster(pixelData, width, height, clusterCount, transparentM
 	const maxIterations = 50
 	while (iterations < maxIterations && JSON.stringify(centroids) !== JSON.stringify(lastCentroids)) {
 		lastCentroids = centroids.map(c => [...c])
-		const clusters = Array.from({ length: clusterCount }, () => [])
+		const clusters = Array.from({
+			length: clusterCount
+		}, () => [])
 
 		for (const p of pixels) {
 			let minDist = Infinity
@@ -2384,7 +2841,10 @@ function extractMainColors(pixelResult, width, height) {
 	// 转数组并按数量排序
 	const colorList = Object.entries(colorCount).map(([key, count]) => {
 		const [r, g, b] = key.split(',').map(Number)
-		return { rgb: [r, g, b], count }
+		return {
+			rgb: [r, g, b],
+			count
+		}
 	}).sort((a, b) => b.count - a.count)
 
 	// 根据精度动态调整主色池大小
@@ -2400,7 +2860,7 @@ function findClosestMainColor(targetRgb) {
 
 	// 根据精度设置合并阈值，精度越低，合并力度越大
 	// 精度1-5：阈值逐渐降低，1时最激进合并，5时轻微合并
-	const mergeThreshold = (6 - matchAccuracy.value) * 15  // 1→75, 5→15, 越小合并越多
+	const mergeThreshold = (6 - matchAccuracy.value) * 15 // 1→75, 5→15, 越小合并越多
 
 	for (const color of imageMainColors.value) {
 		const dist = euclideanDistance(targetRgb, color.rgb)
@@ -2414,7 +2874,7 @@ function findClosestMainColor(targetRgb) {
 	if (minDist <= mergeThreshold) {
 		return bestRgb
 	} else {
-		return targetRgb  // 距离太远，不合并
+		return targetRgb // 距离太远，不合并
 	}
 }
 
@@ -2616,25 +3076,23 @@ const showExportSettings = () => {
 	// 打开弹窗前，先加载本地存储的设置
 	const savedSettings = uni.getStorageSync('exportSettings')
 	if (savedSettings) {
-		exportSettings.value = { ...exportSettings.value, ...savedSettings }
+		exportSettings.value = {
+			...exportSettings.value,
+			...savedSettings
+		}
 		authorName.value = savedSettings.authorName || ''
 		watermarkText.value = savedSettings.watermarkText || ''
 	}
-	
+
 	isSetting.value = true
 	showExportSettingsDialog.value = true
 }
 
 const toggleExportSettingsDialog = () => {
-	// 如果设置了记住选项，直接下载
+	// 如果设置了记住选项，直接显示预览
 	if (exportSettings.value.rememberSettings) {
-		performDownload()
+		generateExportPreview()
 	} else {
-		// // 保存原始设置用于取消时还原
-		// originalExportSettings = JSON.parse(JSON.stringify(exportSettings.value))
-		// originalAuthorName = authorName.value
-		// originalWatermarkText = watermarkText.value
-		
 		isSetting.value = false
 		showExportSettingsDialog.value = true
 	}
@@ -2645,6 +3103,274 @@ const cancelExportSettings = () => {
 	showExportSettingsDialog.value = false
 }
 
+// 生成导出预览图
+const generateExportPreview = async () => {
+	// 关闭设置弹窗
+	showExportSettingsDialog.value = false
+	console.log("tempShareId", tempShareId)
+	console.log("tempShareId2", app.isEmpty(tempShareId))
+
+	// 显示预览弹窗
+	showExportPreviewDialog.value = true
+	isGeneratingPreview.value = true
+	exportPreviewImage.value = ''
+
+	// 如果开启了分享码，先生成分享码（必须等待完成后再执行导出）
+	if (app.isEmpty(tempShareId)) {
+		await createShareCode()
+	} else {
+		if (app.isEmpty(tempShareCode)) {
+			try {
+				// 生成过分享码，但丢失，通过ID重新获取
+				const res = await uniCloud.callFunction({
+					name: 'share-code',
+					data: {
+						action: 'shareCodeById',
+						data: {
+							id: tempShareId
+						}
+					}
+				})
+				console.log('云函数返回:', res)
+
+				if (res.result.code === 0) {
+					tempShareCode = res.result.data.share_code
+					console.log('重新获取分享码成功:', tempShareCode)
+				} else {
+					// 失败重新创建分享码
+					await createShareCode()
+				}
+			} catch (e) {
+				console.error('调用云函数失败:', e)
+				await createShareCode()
+			}
+		} else {
+			console.log('已存在分享码，无需重新生成:', tempShareCode)
+		}
+	}
+
+	try {
+		// 生成预览图
+		const previewImage = await performFullExport(true) // 传入 true 表示只生成预览
+		exportPreviewImage.value = previewImage
+	} catch (error) {
+		console.error('生成预览失败:', error)
+		uni.showToast({
+			title: '预览生成失败',
+			icon: 'none'
+		})
+	} finally {
+		isGeneratingPreview.value = false
+	}
+}
+
+// 创建分享码
+const createShareCode = async () => {
+	if (exportSettings.value.addShareCode) {
+		const token = uni.getStorageSync('uni_id_token')
+		if (token) {
+			// 创建临时分享码记录
+			const shareResult = await createShareCodeToCloud()
+			if (shareResult) {
+				tempShareCode = shareResult.share_code
+				tempShareId = shareResult._id
+				console.log('分享码已保存到云端:', shareResult.share_code)
+			}
+		} else {
+			if (exportSettings.value.isPublic) {
+				await createShareCodeToCloud()
+			} else {
+				console.warn('未登录，无法生成私密分享码')
+			}
+		}
+	}
+}
+
+// 关闭预览弹窗
+const closeExportPreview = (isClose) => {
+	showExportPreviewDialog.value = false
+	exportPreviewImage.value = ''
+	// 如果设置了记住选项，直接显示预览
+	if (exportSettings.value.rememberSettings && isClose) {
+		isSetting.value = false
+		showExportSettingsDialog.value = true
+	}
+}
+
+// 预览完整图片
+const previewFullImage = (url) => {
+	if (url) {
+		uni.previewImage({
+			urls: [url],
+			current: url
+		})
+	}
+}
+
+// 删除临时分享码记录
+const deleteShareCodeToCloud = async (shareCode) => {
+	if (!shareCode) return false
+
+	try {
+		const res = await uniCloud.callFunction({
+			name: 'share-code',
+			data: {
+				action: 'delete',
+				data: {
+					shareCode
+				}
+			}
+		})
+		return res.result.code === 0
+	} catch (e) {
+		console.error('删除分享码失败:', e)
+		return false
+	}
+}
+
+// 保存导出图片
+const saveExportImage = async () => {
+	if (!exportPreviewImage.value) {
+		uni.showToast({
+			title: '请先生成预览',
+			icon: 'none'
+		})
+		return
+	}
+
+	uni.showLoading({
+		title: '保存中...'
+	})
+	try {
+		// 保存到相册
+		await new Promise((resolve, reject) => {
+			uni.saveImageToPhotosAlbum({
+				filePath: exportPreviewImage.value,
+				success: async () => {
+					// 保存成功后，更新分享码（用最新数据，同时设为正常状态）
+					if (exportSettings.value.addShareCode && tempShareId) {
+						await updateShareCodeToCloud()
+					}
+
+					// 如果勾选了同步到发现，发布到发现社区
+					if (exportSettings.value.shareToDiscovery) {
+						const token = uni.getStorageSync('uni_id_token')
+						if (token) {
+							const discoveryResult = await publishToDiscovery(tempShareId)
+							if (discoveryResult.code === 0) {
+								console.log('已同步到发现社区:', discoveryResult.data)
+							}
+						}
+					}
+
+					// 显示成功提示
+					if (exportSettings.value.addShareCode && tempShareCode) {
+						uni.showToast({
+							title: `保存成功，分享码: ${tempShareCode}`,
+							icon: 'none',
+							duration: 2500
+						})
+					} else if (exportSettings.value.shareToDiscovery) {
+						uni.showToast({
+							title: '保存成功，已同步到发现',
+							icon: 'none',
+							duration: 2000
+						})
+					} else {
+						uni.hideLoading()
+						uni.showToast({
+							title: '保存成功',
+							icon: 'none'
+						})
+					}
+					closeExportPreview()
+					resolve()
+				},
+				fail: async (err) => {
+					uni.hideLoading()
+					console.error('保存失败:', err)
+
+					// 保存失败时，删除临时分享码记录
+					if (exportSettings.value.addShareCode && tempShareCode) {
+						const deleted = await deleteShareCodeToCloud(tempShareCode)
+						if (deleted) {
+							console.log('已清理临时分享码记录:', tempShareCode)
+						}
+					}
+
+					// 根据错误类型提示用户
+					if (err.errMsg && err.errMsg.includes('auth deny')) {
+						uni.showToast({
+							title: '需要相册权限才能保存',
+							icon: 'none'
+						})
+					} else {
+						uni.showToast({
+							title: '保存失败',
+							icon: 'none'
+						})
+					}
+					reject(err)
+				}
+			})
+		})
+	} catch (error) {
+		uni.hideLoading()
+		console.error('保存失败:', error)
+	}
+}
+
+// 发布到发现社区
+const publishToDiscovery = async (shareCodeId) => {
+	const canvasData = generateCanvasData()
+	if (!canvasData) {
+		console.error('无法生成canvas_data')
+		return {
+			code: 10001,
+			message: '无法生成作品数据'
+		}
+	}
+
+	// 解析标签
+	const tags = exportSettings.value.tagsInput ?
+		exportSettings.value.tagsInput.split(/[,，]/).map(t => t.trim()).filter(t => t) :
+		[]
+
+	const cloudData = {
+		canvas_data: canvasData,
+		settings: {
+			brand: selectedBrand.value,
+			colorMergeThreshold: colorMergeThreshold.value,
+			conversionMode: pixelationMode.value
+		},
+		metadata: {
+			title: exportSettings.value.title || '',
+			description: exportSettings.value.description || '',
+			tags: tags
+		},
+		preview_image: exportPreviewImage.value || '',
+		share_code_id: shareCodeId || null, // 关联分享码
+		is_public: exportSettings.value.isPublic
+	}
+
+	try {
+		const res = await uniCloud.callFunction({
+			name: 'discovery-works',
+			data: {
+				action: 'publish',
+				data: cloudData
+			}
+		})
+		return res.result
+	} catch (e) {
+		console.error('发布到发现失败:', e)
+		return {
+			code: 99999,
+			message: '发布失败'
+		}
+	}
+}
+
 // ==================== 导出功能 ====================
 
 // 获取导出专用的Canvas实例
@@ -2652,7 +3378,10 @@ const getExportCanvasInstance = () => {
 	return new Promise((resolve) => {
 		const query = uni.createSelectorQuery().in(getCurrentPages()[getCurrentPages().length - 1])
 		query.select('#exportCanvas')
-			.fields({ node: true, size: true })
+			.fields({
+				node: true,
+				size: true
+			})
 			.exec((res) => {
 				if (res && res.length > 0 && res[0] && res[0].node) {
 					const canvas = res[0].node
@@ -2678,7 +3407,10 @@ const calculateExportLayout = async () => {
 	const mainCanvasInfo = await new Promise((resolve) => {
 		const query = uni.createSelectorQuery().in(getCurrentPages()[getCurrentPages().length - 1])
 		query.select('#mainCanvas')
-			.fields({ node: true, size: true })
+			.fields({
+				node: true,
+				size: true
+			})
 			.exec((res) => {
 				if (res && res[0]) {
 					resolve(res[0])
@@ -2696,113 +3428,465 @@ const calculateExportLayout = async () => {
 	const mainWidth = mainCanvasInfo.width
 	const mainHeight = mainCanvasInfo.height
 
-	// 计算颜色统计图尺寸
-	const statsHeight = Math.min(400, 60 + colorStats.value.length * 45)
-	const statsWidth = mainWidth
+	// 确保图纸区域足够大，能容纳高清50px的格子
+	const hdCellSize = 50
+	const {
+		mappedData,
+		gridSize
+	} = perlerResultData.value || {}
+	let minRequiredWidth = mainWidth
+	let minRequiredHeight = mainHeight
 
-	// 间距
-	const gap = 30
+	if (mappedData && gridSize) {
+		const N = gridSize.N
+		const M = gridSize.M
+		minRequiredWidth = Math.max(mainWidth, N * hdCellSize + EXPORT_PADDING * 2)
+		minRequiredHeight = Math.max(mainHeight, M * hdCellSize + EXPORT_PADDING * 2)
+	}
 
+	// 颜色统计图区域 - Grid布局，每行显示多个颜色
+	const colorItemWidth = 300 // 每个颜色项宽度
+	const colorsPerRow = Math.floor((minRequiredWidth - EXPORT_PADDING * 2) / colorItemWidth)
+	const actualColorsPerRow = Math.max(1, Math.min(colorsPerRow, colorStats.value.length))
+	const statsRows = Math.ceil(colorStats.value.length / actualColorsPerRow)
+	const statsItemHeight = 50
+	const statsHeight = 50 + statsRows * statsItemHeight + 16 * 7 + 12 // 标题 + 行 + padding
+	const statsWidth = minRequiredWidth
+
+
+	// 作品信息区域 - 包含标题、描述、标签等
+	const infoWidth = minRequiredWidth
+	let contentRows = 2; // 固定3行内容
+	// 计算有几行信息
+	if (exportSettings.value.showAuthor) {
+		contentRows++
+	}
+	if (exportSettings.value.title) {
+		contentRows++
+	}
+	const infoHeight = 16 * 2 * contentRows + 50 + contentRows * 40 + 50 // 作品信息区域高度
+
+	// 分享码区域高度（包含二维码和文字）
+	const shareCodeAreaHeight = exportSettings.value.addShareCode ? QR_CODE_SIZE + 16 * 8 : 0
+	// 根据布局方向计算位置
+	const isHorizontal = exportSettings.value.layoutDirection === 'horizontal'
+
+	// 下边框总高度（纵向布局）
+	const bottomHeight = isHorizontal ? Math.max(infoHeight, shareCodeAreaHeight) + 100 : statsHeight + Math.max(infoHeight, shareCodeAreaHeight) + 100 // 统计图 + 分享码 + 间距
+
+	// 横向布局时的颜色统计表（纵向单列排列）
+	const statsItemHeightH = 60 // 横向布局时每项高度
+	const maxStatsHeight = minRequiredHeight + bottomHeight - EXPORT_PADDING * 2 // 最大高度（受限于图纸高度）
+	const colorsPerColumn = Math.floor(maxStatsHeight / statsItemHeightH)
+	const statsColumns = Math.ceil(colorStats.value.length / colorsPerColumn)
+	const statsWidthH = 200 + statsColumns * 100 + 100 // 每列宽度约100px
+	// 右侧边框宽度（横向布局）
+	const rightWidth = statsWidthH + 50
+	console.log({ colorsPerColumn: colorsPerColumn })
+	console.log({ rightWidth: rightWidth })
+	console.log({ statsWidthH: statsWidthH })
+
+	// 总尺寸：图纸 + 下边框/右边框
 	let layout = {
-		mainWidth,
-		mainHeight,
+		mainWidth: minRequiredWidth,
+		mainHeight: minRequiredHeight,
 		statsWidth,
 		statsHeight,
-		gap,
+		statsWidthH,
+		statsHeight: maxStatsHeight,
+		colorsPerColumn,
+		infoWidth,
+		infoHeight,
+		contentRows,
+		shareCodeAreaHeight,
+		bottomHeight,
+		rightWidth,
+		colorsPerRow: actualColorsPerRow,
 		isMerge: exportSettings.value.separateImages === 'merge',
 		direction: exportSettings.value.layoutDirection
 	}
 
-	if (layout.isMerge) {
-		// 合并模式
-		if (layout.direction === 'vertical') {
-			// 纵向：图纸在上，颜色统计在下
-			layout.totalWidth = mainWidth + EXPORT_PADDING * 2
-			layout.totalHeight = mainHeight + statsHeight + gap + EXPORT_PADDING * 2
-			layout.mainX = EXPORT_PADDING
-			layout.mainY = EXPORT_PADDING
-			layout.statsX = EXPORT_PADDING
-			layout.statsY = mainHeight + gap + EXPORT_PADDING
-		} else {
-			// 横向：图纸在左，颜色统计在右
-			layout.totalWidth = mainWidth + statsWidth + gap + EXPORT_PADDING * 2
-			layout.totalHeight = Math.max(mainHeight, statsHeight) + EXPORT_PADDING * 2
-			layout.mainX = EXPORT_PADDING
-			layout.mainY = EXPORT_PADDING
-			layout.statsX = mainWidth + gap + EXPORT_PADDING
-			layout.statsY = EXPORT_PADDING
-		}
+
+	if (isHorizontal) {
+		// 横向布局：图纸在左，统计表在右，信息/分享码在下方
+		layout.totalWidth = minRequiredWidth + rightWidth + EXPORT_PADDING * 2
+		layout.totalHeight = minRequiredHeight + bottomHeight + EXPORT_PADDING * 2
+		layout.mainX = EXPORT_PADDING
+		layout.mainY = EXPORT_PADDING
+		layout.statsX = minRequiredWidth + EXPORT_PADDING
+		layout.statsY = EXPORT_PADDING
+		layout.infoX = EXPORT_PADDING
+		layout.infoY = minRequiredHeight + EXPORT_PADDING + 16
+		layout.shareCodeX = layout.infoX
+		layout.shareCodeY = layout.infoY
 	} else {
-		// 分开模式：两个独立的图片
-		layout.totalWidth = Math.max(mainWidth, statsWidth) + EXPORT_PADDING * 2
-		layout.totalHeight = mainHeight + statsHeight + EXPORT_PADDING * 2
+		// 纵向布局：图纸在上，下边框在下（原有逻辑）
+		layout.totalWidth = minRequiredWidth + EXPORT_PADDING * 2
+		layout.totalHeight = minRequiredHeight + bottomHeight + EXPORT_PADDING * 2
 		layout.mainX = EXPORT_PADDING
 		layout.mainY = EXPORT_PADDING
 		layout.statsX = EXPORT_PADDING
-		layout.statsY = mainHeight + EXPORT_PADDING
+		layout.statsY = minRequiredHeight + EXPORT_PADDING
+		layout.infoX = EXPORT_PADDING
+		layout.infoY = minRequiredHeight + statsHeight + EXPORT_PADDING + 16
+		layout.shareCodeX = EXPORT_PADDING
+		layout.shareCodeY = layout.infoY
 	}
 
 	// 添加阴影偏移量
-	if (exportSettings.value.addShadow) {
-		layout.shadowOffset = 15
-		layout.totalWidth += layout.shadowOffset * 2
-		layout.totalHeight += layout.shadowOffset * 2
-		layout.mainX += layout.shadowOffset
-		layout.mainY += layout.shadowOffset
-		layout.statsX += layout.shadowOffset
-		layout.statsY += layout.shadowOffset
-	}
-
-	// 分享码区域高度
-	if (exportSettings.value.addShareCode) {
-		layout.shareCodeAreaHeight = SHARE_CODE_SIZE + 30
-		layout.totalHeight += layout.shareCodeAreaHeight
-	}
-
+	layout.shadowOffset = exportSettings.value.addShadow ? 15 : 0
+	layout.totalWidth += layout.shadowOffset * 2
+	layout.totalHeight += layout.shadowOffset * 2
+	layout.mainX += layout.shadowOffset
+	layout.mainY += layout.shadowOffset
+	layout.statsX += layout.shadowOffset
+	layout.statsY += layout.shadowOffset
+	layout.infoX += layout.shadowOffset
+	layout.infoY += layout.shadowOffset
+	layout.shareCodeX += layout.shadowOffset
+	layout.shareCodeY += layout.shadowOffset
+	layout.authorX += layout.shadowOffset
+	layout.authorY += layout.shadowOffset
+	console.log('计算导出布局:', layout)
 	return layout
 }
 
-// 绘制颜色统计图
-const drawColorStats = (ctx, x, y, width, scale) => {
-	const padding = 20 * scale
-	const lineHeight = 40 * scale
-	const swatchSize = 25 * scale
-	const fontSize = EXPORT_FONT_SIZE * scale
+// 绘制颜色统计图（Grid布局）
+const drawColorStats = (ctx, x, y, width, scale, colorsPerRow) => {
+	const padding = 16 * scale
+	const lineWidth = 2 * scale; // 边框粗细
+	const radius = 14 * scale; // ✅ 圆弧圆角大小（可自由调整）
+	const titleHeight = 50; // 标题栏高度
+	const itemHeight = 50 * scale // 每个颜色条目高度
+	const swatchSize = 40 * scale
+	const fontSize = 20 * scale
+	// 颜色距离标题的间距
+	const colorStartY = 12 * scale;
+	// const itemWidth = 160 * scale
+	// ========== 核心：自动计算 Grid 尺寸 ==========
+	const totalColors = colorStats.value.length; // 总颜色数
+	const totalRows = Math.ceil(colorStats.value.length / colorsPerRow); // 网格总行数
+	// 计算可用宽度：总宽度 - 左右padding
+	const availableWidth = width - 2 * padding
+	// 重新计算每个颜色项宽度，适配可用区域
+	const itemWidth = availableWidth / colorsPerRow
+	// ✅ 关键变量：外边框的宽度和高度
+	const boxWidth = availableWidth; // 统计外框宽度
+	const boxHeight = titleHeight + totalRows * itemHeight + padding * 7 + colorStartY; // 统计外框高度
+	// 统计外框起始坐标（居中 + 内边距）
+	const boxStartX = x;
+	const boxStartY = y + padding * 2; // 标题文字下方间距
+	// 标题起始坐标
+	const titleX = x + padding * 3;
+	const titleY = y + padding * 7;
+
+	console.log('统计布局计算:', {
+		totalColors,
+		colorsPerRow,
+		totalRows,
+		availableWidth,
+		itemWidth,
+		boxWidth,
+		boxHeight
+	})
+	console.log('统计外框坐标:', {
+		boxStartX,
+		boxStartY
+	})
+
+
+	// ========== 1. 绘制【整体外边框】==========
+	ctx.lineWidth = lineWidth
+	ctx.strokeStyle = '#ebe6e7' // 边框颜色
+	// ctx.strokeStyle = '#ff0000' // 边框颜色
 
 	// 标题
-	ctx.font = `bold ${fontSize * 1.2}px sans-serif`
-	ctx.fillStyle = '#333'
-	ctx.fillText(`颜色统计 - ${colorStats.value.length}种颜色 / ${totalBeads.value}颗`, x + padding, y + fontSize * 1.5)
-	y += fontSize * 2
+	ctx.font = `bold ${fontSize * 2}px sans-serif`
+	ctx.fillStyle = '#101828'
+	ctx.fillText(`颜色统计 - ${colorStats.value.length}种颜色 / ${totalBeads.value}颗`, titleX, titleY)
+	console.log('绘制标题:', {
+		text: `颜色统计 - ${colorStats.value.length}种颜色 / ${totalBeads.value}颗`,
+		x: titleX,
+		y: titleY
+	})
+	// y += fontSize * 2
+	// ctx.strokeRect(boxStartX, boxStartY, boxWidth, boxHeight);
 
-	// 每行显示的颜色数量
-	const colorsPerRow = Math.floor((width - padding * 2) / (swatchSize * 5))
-	const actualColorsPerRow = Math.max(1, Math.min(colorsPerRow, colorStats.value.length))
+
+	// ========== ✅ 绘制【圆弧圆角边框】核心代码 ==========
+	ctx.beginPath();
+	// 左上角圆弧
+	ctx.arc(boxStartX + radius, boxStartY + radius, radius, Math.PI, Math.PI * 1.5);
+	// 顶部直线
+	ctx.lineTo(boxStartX + boxWidth - radius, boxStartY);
+	// 右上角圆弧
+	ctx.arc(boxStartX + boxWidth - radius, boxStartY + radius, radius, Math.PI * 1.5, Math.PI * 2);
+	// 右侧直线
+	ctx.lineTo(boxStartX + boxWidth, boxStartY + boxHeight - radius);
+	// 右下角圆弧
+	ctx.arc(boxStartX + boxWidth - radius, boxStartY + boxHeight - radius, radius, 0, Math.PI * 0.5);
+	// 底部直线
+	ctx.lineTo(boxStartX + radius, boxStartY + boxHeight);
+	// 左下角圆弧
+	ctx.arc(boxStartX + radius, boxStartY + boxHeight - radius, radius, Math.PI * 0.5, Math.PI);
+	// 左侧直线 + 闭合路径
+	ctx.closePath();
+	// 描边绘制圆弧边框
+	ctx.stroke();
 
 	for (let i = 0; i < colorStats.value.length; i++) {
 		const stat = colorStats.value[i]
-		const col = i % actualColorsPerRow
-		const row = Math.floor(i / actualColorsPerRow)
+		const col = i % colorsPerRow
+		const row = Math.floor(i / colorsPerRow)
 
-		const itemX = x + padding + col * (swatchSize * 5)
-		const itemY = y + row * lineHeight
+		const itemX = titleX + col * itemWidth
+		const itemY = titleY + row * itemHeight + colorStartY + 28 * scale
+
+		console.log(`绘制颜色条目 ${i}:`, {
+			color: stat.color,
+			count: stat.count
+		})
+		console.log(`颜色条目 ${i} 位置:`, {
+			col: col,
+			row: row,
+			itemX: itemX,
+			itemY: itemY
+		})
+		console.log(`颜色条目 ${i} 尺寸:`, {
+			itemWidth: itemWidth,
+			itemHeight: itemHeight
+		})
+
+		// 绘制颜色色块
+		ctx.fillStyle = stat.hex
+		ctx.fillRect(itemX + 10 * scale, itemY + 10 * scale, swatchSize, swatchSize);
+
+
+		// 颜色名称和编号 + 颗粒数量
+		ctx.font = `500 ${fontSize * 1.7}px sans-serif`
+		ctx.fillStyle = '#6a7282'
+		const codeText = stat.code || ''
+		const countText = `（${stat.count}）`
+		const textY = itemY + swatchSize * 0.7 + 16 * scale;
+
+		// 绘制颜色code
+		ctx.fillText(codeText, itemX + swatchSize + 20 * scale, textY)
+		console.log(`绘制颜色code ${codeText}:`, {
+			x: itemX + swatchSize + 20 * scale,
+			y: textY
+		})
+
+		// 计算颜色code宽度，然后绘制颗粒数量
+		const codeWidth = ctx.measureText(codeText).width
+		ctx.fillText(countText, itemX + swatchSize + 15 * scale + codeWidth, textY)
+		console.log(`绘制颗粒数量 ${countText}:`, {
+			x: itemX + swatchSize + 15 * scale + codeWidth,
+			y: textY
+		})
+	}
+
+	// 返回最终Y坐标，用于后续绘制二维码/说明文字
+	return boxStartY + boxHeight + padding;
+}
+
+// 绘制颜色统计图（横向布局：纵向单列排列，超高换列）
+const drawColorStatsHorizontal = (ctx, x, y, maxHeight, scale, colorsPerColumn) => {
+	const padding = 16 * scale
+	const lineWidth = 2 * scale
+	const radius = 14 * scale
+	const itemHeight = 60 * scale // 每项高度
+	const swatchSize = 40 * scale
+	const fontSize = 20 * scale
+	const columnWidth = 300 * scale // 每列宽度
+
+	const totalColors = colorStats.value.length
+	const columns = Math.ceil(totalColors / colorsPerColumn)
+	const boxWidth = columns * columnWidth + padding * 4
+	const boxHeight = maxHeight - padding * 2
+	
+	const boxStartX = x + padding * 3
+	const boxStartY = y
+
+	// 标题
+	const titleX = boxStartX + padding * 2
+	const titleY = boxStartY + padding + 40
+	ctx.font = `bold ${fontSize * 2}px sans-serif`
+	ctx.fillStyle = '#101828'
+	ctx.fillText(`颜色统计`, titleX, titleY + padding)
+
+	// 副标题（统计数量）
+	ctx.font = `bold ${fontSize * 1.8}px sans-serif`
+	ctx.fillStyle = '#6a7282'
+	ctx.fillText(`${totalColors}种颜色 / ${totalBeads.value}颗`, titleX, titleY + 70 + padding )
+
+	// 绘制外边框
+	ctx.lineWidth = lineWidth
+	ctx.strokeStyle = '#ebe6e7'
+	// ctx.strokeStyle = '#ff0000'
+	ctx.beginPath()
+	ctx.arc(boxStartX + radius, boxStartY + radius, radius, Math.PI, Math.PI * 1.5)
+	ctx.lineTo(boxStartX + boxWidth - radius, boxStartY)
+	ctx.arc(boxStartX + boxWidth - radius, boxStartY + radius, radius, Math.PI * 1.5, Math.PI * 2)
+	ctx.lineTo(boxStartX + boxWidth, boxStartY + boxHeight - radius)
+	ctx.arc(boxStartX + boxWidth - radius, boxStartY + boxHeight - radius, radius, 0, Math.PI * 0.5)
+	ctx.lineTo(boxStartX + radius, boxStartY + boxHeight)
+	ctx.arc(boxStartX + radius, boxStartY + boxHeight - radius, radius, Math.PI * 0.5, Math.PI)
+	ctx.closePath()
+	ctx.stroke()
+
+	// 绘制每个颜色条目
+	const itemStartY = y + padding + 60
+	for (let i = 0; i < totalColors; i++) {
+		const stat = colorStats.value[i]
+		const col = Math.floor(i / colorsPerColumn)
+		const row = i % colorsPerColumn
+
+		const itemX = titleX
+		const itemY = itemStartY + row * itemHeight + 70 + padding * 2 
 
 		// 颜色色块
 		ctx.fillStyle = stat.hex
 		ctx.fillRect(itemX, itemY, swatchSize, swatchSize)
 
-		// 颜色名称和编号
-		ctx.font = `${fontSize * 0.8}px sans-serif`
-		ctx.fillStyle = '#666'
-		const nameText = stat.name || stat.code || `Color ${i + 1}`
+		// 颜色code和数量
+		ctx.font = `${fontSize * 1.7}px sans-serif`
+		ctx.fillStyle = '#6a7282'
 		const codeText = stat.code || ''
-		const countText = `${stat.count}颗`
-
-		ctx.fillText(nameText.substring(0, 8), itemX + swatchSize + 5 * scale, itemY + swatchSize * 0.6)
-		ctx.fillText(`${codeText} ${countText}`, itemX + swatchSize + 5 * scale, itemY + swatchSize)
+		const countText = `(${stat.count})`
+		ctx.fillText(codeText, itemX + swatchSize + 5, itemY + swatchSize * 0.7)
+		const codeWidth = ctx.measureText(codeText).width
+		ctx.fillText(countText, itemX + swatchSize + 10 + codeWidth, itemY + swatchSize * 0.7)
 	}
 
-	return y + Math.ceil(colorStats.value.length / actualColorsPerRow) * lineHeight + padding
+	return boxWidth
+}
+
+// 绘制作品信息
+const drawArtworkInfo = (ctx, x, y, width, scale, contentRows) => {
+	console.log('绘制作品信息:', {
+		x,
+		y,
+		width,
+		scale
+	})
+	const padding = 16 * scale
+	const lineWidth = 2 * scale; // 边框粗细
+	// 计算可用宽度：总宽度 - 左右padding
+	const availableWidth = ((width - 2 * padding) / 5) * 2 // 作品信息区域占总宽度的2/5
+	const radius = 14 * scale; // ✅ 圆弧圆角大小（可自由调整）
+	const titleHeight = 50; // 标题栏高度
+	const lineHeight = 60 * scale; // 每行文字高度
+	const titleFontSize = 40 * scale; // 标题字号
+	const textFontSize = 20 * scale; // 内容字号
+	const textColor = '#101828'; // 主文字颜色
+	const labelColor = '#6a7282'; // 标签文字颜色（浅灰，区分内容）
+	const borderColor = '#ebe6e7';     // 边框色
+	// const borderColor = '#ff0000'; // 边框色（测试用）
+	// 统计外框起始坐标（居中 + 内边距）
+	const boxStartX = x;
+	const boxStartY = y + padding * 4; // 标题文字下方间距
+	// 标题起始坐标
+	const titleX = x + padding * 3;
+	const titleY = y + padding * 7 + 20;
+
+	console.log('作品信息行数:', contentRows)
+	// ========== 1. 计算模块总高度 ==========
+
+	const contentHeight = contentRows * lineHeight;
+	const boxHeight = padding * 2 * contentRows + titleHeight +
+		contentHeight; // 模块总高度  16 * 2 + 50 + contentRows * 40
+	console.log('作品信息模块高度计算:', {
+		contentHeight,
+		boxHeight
+	})
+	console.log('作品信息模块坐标:', {
+		boxStartX,
+		boxStartY
+	})
+	console.log('作品信息模块宽度:', availableWidth)
+	// 填充背景 + 描边边框
+	ctx.lineWidth = lineWidth;
+	ctx.strokeStyle = borderColor;
+	// ========== 2. 绘制圆角背景（和颜色统计模块样式统一） ==========
+	ctx.beginPath();
+	// 左上角圆弧
+	ctx.arc(boxStartX + radius, boxStartY + radius, radius, Math.PI, Math.PI * 1.5);
+	// 顶部直线
+	ctx.lineTo(boxStartX + availableWidth - radius, boxStartY);
+	// 右上角圆弧
+	ctx.arc(boxStartX + availableWidth - radius, boxStartY + radius, radius, Math.PI * 1.5, Math.PI * 2);
+	// 右侧直线
+	ctx.lineTo(boxStartX + availableWidth, boxStartY + boxHeight - radius);
+	// 右下角圆弧
+	ctx.arc(boxStartX + availableWidth - radius, boxStartY + boxHeight - radius, radius, 0, Math.PI * 0.5);
+	// 底部直线
+	ctx.lineTo(boxStartX + radius, boxStartY + boxHeight);
+	// 左下角圆弧
+	ctx.arc(boxStartX + radius, boxStartY + boxHeight - radius, radius, Math.PI * 0.5, Math.PI);
+	ctx.closePath();
+	ctx.stroke();
+
+	// ========== 3. 绘制标题「作品信息」 ==========
+	ctx.font = `bold ${titleFontSize}px sans-serif`; // 字重600加粗
+	ctx.fillStyle = textColor;
+	ctx.textAlign = 'left';
+	ctx.textBaseline = 'middle'; // 文字垂直居中
+	ctx.fillText('作品信息', titleX, titleY);
+
+	// ========== 4. 绘制三行左右对齐的文字 ==========
+	// 定义三行数据（标签+内容）
+	const rows = [{
+		label: '作品标题',
+		value: exportSettings.value.title || '-'
+	},
+	{
+		label: '作者名',
+		value: authorName.value || '-'
+	},
+	{
+		label: '品牌色系',
+		value: selectedBrand.value
+	},
+	{
+		label: '尺寸规格',
+		value: gridColumns.value + '*' + gridRows.value
+	}
+	];
+	if (contentRows == 2) {
+		rows.splice(0, 2) // 没有标题和作者信息，就不显示
+	} else if (app.isEmpty(exportSettings.value.title)) {
+		rows.splice(0, 1) // 没有标题就不显示标题行
+	} else if (app.isEmpty(exportSettings.value.showAuthor)) {
+		rows.splice(1, 1) // 没有作者信息就不显示作者行
+	}
+
+	rows.forEach((row, index) => {
+		// 计算当前行的垂直居中Y坐标
+		const rowY = boxStartY + titleHeight + (index + 1) * lineHeight + padding * 2;
+		console.log(`绘制作品信息行 ${index}:`, {
+			label: row.label,
+			value: row.value,
+			x: titleX,
+			y: rowY
+		})
+
+		// ① 绘制左边标签（左对齐，浅灰色）
+		ctx.font = `500 ${textFontSize * 1.7}px sans-serif`;
+		ctx.fillStyle = labelColor;
+		ctx.textAlign = 'left';
+		ctx.fillText(row.label, titleX, rowY);
+
+		// ② 绘制右边内容（右对齐，主色）
+		ctx.fillStyle = textColor;
+		ctx.textAlign = 'right';
+		ctx.fillText(row.value, titleX + availableWidth - padding * 5, rowY);
+	});
+
+	// 重置对齐方式，避免影响后续绘制
+	ctx.textAlign = 'left';
+
+	// 返回模块底部Y坐标，用于后续绘制其他元素
+	return y + boxHeight;
 }
 
 // 绘制水印
@@ -2814,9 +3898,9 @@ const drawWatermark = (ctx, canvasWidth, canvasHeight, scale) => {
 	if (exportSettings.value.watermarkType === 'oneCenter') {
 		// 单个居中水印
 		ctx.save()
-		ctx.globalAlpha = 0.15
-		ctx.font = `bold ${fontSize * 2}px sans-serif`
-		ctx.fillStyle = '#888'
+		ctx.globalAlpha = 0.5
+		ctx.font = `bold ${fontSize * 7}px sans-serif`
+		ctx.fillStyle = '#99a1af'
 		ctx.textAlign = 'center'
 		ctx.textBaseline = 'middle'
 		ctx.fillText(watermarkText.value, canvasWidth / 2, canvasHeight / 2)
@@ -2824,15 +3908,22 @@ const drawWatermark = (ctx, canvasWidth, canvasHeight, scale) => {
 	} else {
 		// 多列斜着循环文字
 		ctx.save()
-		ctx.globalAlpha = 0.1
+		ctx.globalAlpha = 0.5
 		ctx.font = `${fontSize}px sans-serif`
-		ctx.fillStyle = '#888'
+		ctx.fillStyle = '#99a1af'
+		// ctx.fillStyle = '#ffaa00'
 		ctx.textAlign = 'left'
 		ctx.textBaseline = 'top'
 
 		const spacing = 200 * scale
 		const rows = Math.ceil(canvasHeight / spacing) + 2
 		const cols = Math.ceil(canvasWidth / spacing) + 2
+
+		console.log('绘制斜着循环水印:', {
+			rows,
+			cols,
+			spacing
+		})
 
 		for (let r = 0; r < rows; r++) {
 			for (let c = 0; c < cols; c++) {
@@ -2847,106 +3938,230 @@ const drawWatermark = (ctx, canvasWidth, canvasHeight, scale) => {
 	}
 }
 
-// 绘制作者名
-const drawAuthorName = (ctx, x, y, width, scale) => {
-	if (!exportSettings.value.showAuthor || !authorName.value) return
-
-	const fontSize = EXPORT_FONT_SIZE * scale
-
-	ctx.save()
-	ctx.font = `bold ${fontSize}px sans-serif`
-	ctx.fillStyle = '#333'
-	ctx.textAlign = 'right'
-	ctx.textBaseline = 'top'
-
-	// 绘制在图纸右上角
-	ctx.fillText(`@${authorName.value}`, x + width - 10 * scale, y + 10 * scale)
-	ctx.restore()
-}
-
 // 绘制分享码标识（包含二维码）
 const drawShareCode = (ctx, x, y, width, shareCode, scale) => {
+	console.log('绘制分享码标识:', {
+		x,
+		y,
+		width,
+		shareCode,
+		scale
+	})
 	if (!exportSettings.value.addShareCode || !shareCode) return
+	// 主色/点缀色
+	const accentPrimary = '#5cadfd'
+	const accentLight = '#eff6ff'      // 二维码背景
+	const accentLight2 = '#bedbff'
+	const accentLight3 = '#93c5fd'
+	const accentHover = '#357abd'      // 二维码定位点深色
+	const padding = 16 * scale; // 边框
+	const lineWidth = 2 * scale // 粗细
+	// 计算可用宽度：总宽度 - 左右padding
+	const availableLeftWidth = ((width - 2 * padding) / 5) * 2 // 作品信息区域占总宽度的2/5
+	const availableWidth = ((width - 2 * padding) / 5) * 3 - padding * 2 // 分享码占总宽度的3/5
+	const radius = 14 * scale; // ✅ 圆弧圆角大小（可自由调整）
 
 	const fontSize = EXPORT_FONT_SIZE * scale
-	const qrSize = 120 * scale // 二维码尺寸
+	const qrSize = QR_CODE_SIZE * scale
+
+	const borderColor = '#bedbff4d';     // 边框色
+	// const borderColor = '#ff0000'; // 边框色（测试用）
+	// 统计外框起始坐标（居中 + 内边距）
+	const boxStartX = x + availableLeftWidth + padding;
+	const boxStartY = y + padding * 4; // 标题文字下方间距
+
+	// ========== 1. 计算模块总高度 ==========
+	const boxHeight = padding * 8 + qrSize; // 模块总高度  16 * 2 + 50 + contentRows * 40
+	console.log('分享码模块高度计算:', {
+		boxHeight
+	})
+	console.log('分享码模块坐标:', {
+		boxStartX,
+		boxStartY
+	})
+	console.log('分享码模块宽度:', availableWidth)
+	// 填充背景 +  = lineWidth;
+	ctx.strokeS描边边框
+	ctx.lineWidthtyle = borderColor;
+	// ========== 2. 绘制圆角背景（和颜色统计模块样式统一） ==========
+	ctx.beginPath();
+	// 左上角圆弧
+	ctx.arc(boxStartX + radius, boxStartY + radius, radius, Math.PI, Math.PI * 1.5);
+	// 顶部直线
+	ctx.lineTo(boxStartX + availableWidth - radius, boxStartY);
+	// 右上角圆弧
+	ctx.arc(boxStartX + availableWidth - radius, boxStartY + radius, radius, Math.PI * 1.5, Math.PI * 2);
+	// 右侧直线
+	ctx.lineTo(boxStartX + availableWidth, boxStartY + boxHeight - radius);
+	// 右下角圆弧
+	ctx.arc(boxStartX + availableWidth - radius, boxStartY + boxHeight - radius, radius, 0, Math.PI * 0.5);
+	// 底部直线
+	ctx.lineTo(boxStartX + radius, boxStartY + boxHeight);
+	// 左下角圆弧
+	ctx.arc(boxStartX + radius, boxStartY + boxHeight - radius, radius, Math.PI * 0.5, Math.PI);
+	ctx.closePath();
+	const gradient = ctx.createLinearGradient(boxStartX, boxStartY, boxStartX + availableWidth, boxStartY +
+		boxHeight);
+	// 添加渐变颜色（完全匹配你的CSS）
+	gradient.addColorStop(0, 'rgba(190, 219, 255, 0.2)'); // #bedbff33 转RGBA
+	gradient.addColorStop(1, '#ffffff'); // 纯白色
+	ctx.fillStyle = gradient;
+	ctx.fill();
+	ctx.stroke();
 
 	ctx.save()
 
-	// 分隔线
-	ctx.strokeStyle = '#ddd'
-	ctx.lineWidth = 1 * scale
-	ctx.beginPath()
-	ctx.moveTo(x + 20 * scale, y + 15 * scale)
-	ctx.lineTo(x + width - 20 * scale, y + 15 * scale)
-	ctx.stroke()
+	// 二维码区域（左侧）
+	const qrX = boxStartX + padding * 4
+	const qrY = boxStartY + padding * 4
+	const qrPadding = 10 * scale // 二维码边框内边距
+	const qrBorderSize = qrSize + qrPadding * 2
 
-	// 分享码文本（放在左侧）
-	const textX = x + 20 * scale
-	const textY = y + 15 * scale + qrSize / 2
-	ctx.font = `${fontSize * 0.9}px sans-serif`
-	ctx.fillStyle = '#333'
-	ctx.textAlign = 'left'
-	ctx.textBaseline = 'middle'
-	ctx.fillText(`分享码: ${shareCode.substring(0, 12)}...`, textX, textY)
+	// 绘制二维码框
+	// 填充背景 + 描边边框
+	ctx.lineWidth = lineWidth;
+	ctx.strokeStyle = '#ebe6e7';
+	// ========== 2. 绘制圆角背景（和颜色统计模块样式统一） ==========
+	ctx.beginPath();
+	// 左上角圆弧
+	ctx.arc(qrX + radius, qrY + radius, radius, Math.PI, Math.PI * 1.5);
+	// 顶部直线
+	ctx.lineTo(qrX + qrBorderSize - radius, qrY);
+	// 右上角圆弧
+	ctx.arc(qrX + qrBorderSize - radius, qrY + radius, radius, Math.PI * 1.5, Math.PI * 2);
+	// 右侧直线
+	ctx.lineTo(qrX + qrBorderSize, qrY + qrBorderSize - radius);
+	// 右下角圆弧
+	ctx.arc(qrX + qrBorderSize - radius, qrY + qrBorderSize - radius, radius, 0, Math.PI * 0.5);
+	// 底部直线
+	ctx.lineTo(qrX + radius, qrY + qrBorderSize);
+	// 左下角圆弧
+	ctx.arc(qrX + radius, qrY + qrBorderSize - radius, radius, Math.PI * 0.5, Math.PI);
+	ctx.closePath();
+	ctx.fillStyle = '#ffffff';
+	ctx.fill();
+	ctx.stroke();
 
-	// 使用说明
-	ctx.font = `${fontSize * 0.65}px sans-serif`
-	ctx.fillStyle = '#666'
-	ctx.fillText('请使用「趣拼豆」扫码导入', textX, textY + 25 * scale)
+	ctx.save()
 
-	// 二维码区域（放在右侧）
-	const qrX = x + width - qrSize - 20 * scale
-	const qrY = y + 15 * scale + (qrSize - qrSize) / 2
-
-	// 创建并绘制二维码
+	// 分享码太长时跳过二维码绘制（限制约1000字符）
+	console.log('分享码:', shareCode)
+	console.log('分享码长度:', shareCode.length)
+	// 创建并绘制【蓝色系彩色二维码】
 	try {
 		const qr = new UQRCode()
-		qr.data = shareCode
+		// 上线需要替换域名
+		qr.data = 'https://mp-f64c74e6-f53f-41e0-8406-216ac4da6408.cdn.bspapp.com' + '?shareCode=' + shareCode // 你的内容 PPPPPR
 		qr.size = qrSize
-		qr.backgroundColor = '#ffffff'
-		qr.foregroundColor = '#000000'
+		// 🔥 替换背景色：白色 → 浅蓝底色 #eff6ff
+		qr.backgroundColor = accentLight
+		// 🔥 替换前景色基础色：黑色 → 主蓝色 #5cadfd
+		qr.foregroundColor = accentPrimary
 		qr.make()
 
 		const moduleCount = qr.moduleCount
 		const cellSize = qrSize / moduleCount
 
-		// 绘制白色背景
-		ctx.fillStyle = '#ffffff'
-		ctx.fillRect(qrX - 5 * scale, qrY - 5 * scale, qrSize + 10 * scale, qrSize + 10 * scale)
+		console.log('二维码模块数:', moduleCount)
+		console.log('二维码单元格大小:', cellSize)
 
 		// 绘制二维码（逐格子绘制）
 		for (let row = 0; row < moduleCount; row++) {
 			for (let col = 0; col < moduleCount; col++) {
 				if (qr.isBlack(row, col)) {
-					ctx.fillStyle = '#000000'
+					// ==============================================
+					// 🔥 核心：彩色美化 - 定位点用深色，普通点用主色
+					// 二维码三个角的定位框 → 用更深的 #357abd
+					// 普通模块 → 用主色 #5cadfd
+					// ==============================================
+					const isPositionBox =
+						(row < 7 && col < 7) ||                      // 左上角
+						(row < 7 && col > moduleCount - 8) ||       // 右上角
+						(row > moduleCount - 8 && col < 7)          // 左下角
+
+					// 定位点用深色，普通点用主色，层次感更强
+					ctx.fillStyle = isPositionBox ? accentHover : accentPrimary
+					// 绘制彩色二维码模块
 					ctx.fillRect(
 						qrX + col * cellSize,
 						qrY + row * cellSize,
-						cellSize + 0.5, // 加0.5避免缝隙
+						cellSize + 0.5,
 						cellSize + 0.5
 					)
+					// console.log(`绘制二维码模块: row=${row}, col=${col}, isPositionBox=${isPositionBox}`)
+					// console.log(`模块坐标: x=${qrX + col * cellSize}, y=${qrY + row * cellSize}, size=${cellSize + 0.5}`)
 				}
 			}
 		}
 	} catch (err) {
 		console.error('生成二维码失败:', err)
 		// 回退：显示文字提示
-		ctx.fillStyle = '#f0f0f0'
-		ctx.fillRect(qrX - 5 * scale, qrY - 5 * scale, qrSize + 10 * scale, qrSize + 10 * scale)
-		ctx.font = `${fontSize * 0.5}px sans-serif`
+		ctx.font = `${fontSize * 0.6}px sans-serif`
 		ctx.fillStyle = '#999'
 		ctx.textAlign = 'center'
 		ctx.textBaseline = 'middle'
 		ctx.fillText('二维码生成失败', qrX + qrSize / 2, qrY + qrSize / 2)
 	}
 
+	// 二维码区域（右侧）
+	// 分享码文本内容
+	const textX = qrX + qrBorderSize + padding * 2
+	const textY = qrY + padding * 4 // 从二维码顶部开始，留出字体大小
+	const textMaxWidth = availableWidth - qrBorderSize - padding * 9 // 右侧边距
+	const textHeight = 150
+	ctx.font = `${fontSize * 1.5}px sans-serif`
+	ctx.fillStyle = '#4a5565'
+	ctx.textAlign = 'left'
+	ctx.textBaseline = 'middle'
+	ctx.fillText('请使用[豆图]小程序扫码', textX, textY, textMaxWidth)
+	console.log('分享码提示文字坐标:', {
+		x: textX,
+		y: textY,
+		availableWidth: textMaxWidth,
+	})
+	// 分享码
+	// 填充背景 + 描边边框
+	const codeY = textY + 30 + padding * 2
+	ctx.lineWidth = lineWidth;
+	ctx.strokeStyle = '#ebe6e7';
+	// ========== 2. 绘制圆角背景（和颜色统计模块样式统一） ==========
+	ctx.beginPath();
+	// 左上角圆弧
+	ctx.arc(textX + radius, codeY + radius, radius, Math.PI, Math.PI * 1.5);
+	// 顶部直线
+	ctx.lineTo(textX + textMaxWidth - radius, codeY);
+	// 右上角圆弧
+	ctx.arc(textX + textMaxWidth - radius, codeY + radius, radius, Math.PI * 1.5, Math.PI * 2);
+	// 右侧直线
+	ctx.lineTo(textX + textMaxWidth, codeY + textHeight - radius);
+	// 右下角圆弧
+	ctx.arc(textX + textMaxWidth - radius, codeY + textHeight - radius, radius, 0, Math.PI * 0.5);
+	// 底部直线
+	ctx.lineTo(textX + radius, codeY + textHeight);
+	// 左下角圆弧
+	ctx.arc(textX + radius, codeY + textHeight - radius, radius, Math.PI * 0.5, Math.PI);
+	ctx.closePath();
+	ctx.fillStyle = '#ffffff';
+	ctx.fill();
+	ctx.stroke();
+	ctx.font = `${fontSize * 1.5}px sans-serif`
+	ctx.fillStyle = '#4a5565'
+	ctx.textAlign = 'left'
+	ctx.textBaseline = 'middle'
+	ctx.fillText(`分享码：${shareCode}`, textX + padding * 2, codeY + textHeight / 2, textMaxWidth - padding * 2)
+	ctx.save()
+
 	ctx.restore()
 }
 
 // 完整的导出流程
-const performFullExport = async () => {
-	uni.showLoading({ title: '正在生成...' })
+const performFullExport = async (isPreview = false) => {
+	// 预览模式不显示 loading
+	if (!isPreview) {
+		uni.showLoading({
+			title: '正在生成...'
+		})
+	}
 
 	try {
 		// 1. 获取主Canvas图像
@@ -2960,12 +4175,6 @@ const performFullExport = async () => {
 			})
 		})
 
-		// 2. 生成分享码
-		let shareCode = ''
-		if (exportSettings.value.addShareCode) {
-			shareCode = generateCurrentShareCode() || ''
-		}
-
 		// 3. 计算布局
 		const layout = await calculateExportLayout()
 		if (!layout) {
@@ -2974,22 +4183,28 @@ const performFullExport = async () => {
 
 		// 4. 分开导出模式
 		if (!layout.isMerge) {
-			await performSeparateExport(mainImagePath, layout, shareCode)
-			return
+			const imagePath = await performSeparateExport(mainImagePath, layout, tempShareCode, isPreview)
+			return imagePath
 		}
-
+		console.log('合并导出布局:', tempShareCode)
 		// 5. 合并导出模式
-		await performMergeExport(mainImagePath, layout, shareCode)
+		const imagePath = await performMergeExport(mainImagePath, layout, tempShareCode, isPreview)
+		return imagePath
 
 	} catch (error) {
 		console.error('导出失败:', error)
 		uni.hideLoading()
-		uni.showToast({ icon: 'none', title: '导出失败: ' + error.message })
+		uni.showToast({
+			icon: 'none',
+			title: '导出失败: ' + error.message
+		})
+		return null
 	}
 }
 
 // 合并导出
-const performMergeExport = async (mainImagePath, layout, shareCode) => {
+const performMergeExport = async (mainImagePath, layout, shareCode, isPreview = false) => {
+	console.log('执行合并导出，布局:', shareCode)
 	// 获取导出Canvas
 	const exportCanvas = await getExportCanvasInstance()
 	if (!exportCanvas) {
@@ -3021,10 +4236,14 @@ const performMergeExport = async (mainImagePath, layout, shareCode) => {
 	exportCanvas.ctx.fillRect(0, 0, canvasWidth, canvasHeight)
 
 	// ========== 高清绘制拼豆图纸（使用大格子尺寸） ==========
-	const { mappedData, gridSize } = perlerResultData.value || {}
+	const {
+		mappedData,
+		gridSize
+	} = perlerResultData.value || {}
 	if (mappedData && gridSize) {
-		// 使用更大的格子尺寸进行高清绘制（44px 是显示的 2 倍）
-		const hdCellSize = 44
+		// 使用更大的格子尺寸进行高清绘制（50px 确保清晰）
+		const hdCellSize = 50
+		const minCellSize = 50 // 最小格子尺寸限制（确保不低于50px）
 		const N = gridSize.N
 		const M = gridSize.M
 
@@ -3032,11 +4251,11 @@ const performMergeExport = async (mainImagePath, layout, shareCode) => {
 		const hdWidth = N * hdCellSize
 		const hdHeight = M * hdCellSize
 
-		// 如果可用空间比高清绘制尺寸大，使用高清尺寸；否则使用布局尺寸
+		// 可用空间（已确保足够大）
 		const availableWidth = layout.mainWidth - layout.shadowOffset * 2
 		const availableHeight = layout.mainHeight - layout.shadowOffset * 2
 
-		// 选择合适的绘制尺寸
+		// 选择合适的绘制尺寸（固定使用50px高清尺寸）
 		let drawWidth, drawHeight, cellSize
 		if (hdWidth <= availableWidth && hdHeight <= availableHeight) {
 			// 可以使用高清尺寸
@@ -3044,15 +4263,27 @@ const performMergeExport = async (mainImagePath, layout, shareCode) => {
 			drawHeight = hdHeight
 			cellSize = hdCellSize
 		} else {
-			// 使用布局尺寸
+			// 使用布局尺寸，确保不低于50px
 			drawWidth = availableWidth
 			drawHeight = availableHeight
-			cellSize = Math.min(drawWidth / N, drawHeight / M)
+			cellSize = Math.max(minCellSize, Math.min(drawWidth / N, drawHeight / M))
 		}
 
 		// 计算居中偏移
 		const offsetX = layout.mainX + layout.shadowOffset + (availableWidth - drawWidth) / 2
 		const offsetY = layout.mainY + layout.shadowOffset + (availableHeight - drawHeight) / 2
+
+		// 绘制图纸阴影（在图纸区域绘制白色矩形 + 阴影效果）
+		if (exportSettings.value.addShadow) {
+			exportCanvas.ctx.save()
+			exportCanvas.ctx.shadowColor = 'rgba(0, 0, 0, 0.3)'
+			exportCanvas.ctx.shadowBlur = 30
+			exportCanvas.ctx.shadowOffsetX = 10
+			exportCanvas.ctx.shadowOffsetY = 10
+			exportCanvas.ctx.fillStyle = '#ffffff'
+			exportCanvas.ctx.fillRect(offsetX, offsetY, drawWidth, drawHeight)
+			exportCanvas.ctx.restore()
+		}
 
 		// 高清绘制拼豆格子
 		exportCanvas.ctx.save()
@@ -3073,9 +4304,9 @@ const performMergeExport = async (mainImagePath, layout, shareCode) => {
 			}
 		}
 
-		// 绘制颜色 code（仅在格子足够大时）
-		if (cellSize >= 30 && showColorCode.value) {
-			const fontSize = Math.max(10, Math.min(16, cellSize * 0.4))
+		// 绘制颜色 code
+		if (showColorCode.value) {
+			const fontSize = 20 // 固定字体大小
 
 			for (let y = 0; y < M; y++) {
 				for (let x = 0; x < N; x++) {
@@ -3114,24 +4345,42 @@ const performMergeExport = async (mainImagePath, layout, shareCode) => {
 		exportCanvas.ctx.drawImage(mainImage, layout.mainX, layout.mainY, layout.mainWidth, layout.mainHeight)
 	}
 
-	// 绘制作者名
-	drawAuthorName(exportCanvas.ctx, layout.mainX + layout.shadowOffset, layout.mainY + layout.shadowOffset, layout.mainWidth - layout.shadowOffset * 2, 1)
+	// 根据布局方向绘制剩余内容
+	const isHorizontal = layout.direction === 'horizontal'
 
-	// 绘制颜色统计图
-	if (colorStats.value.length > 0) {
-		const actualStatsY = layout.direction === 'horizontal'
-			? layout.statsY + (Math.max(layout.mainHeight, layout.statsHeight) - layout.statsHeight) / 2
-			: layout.statsY
-		const actualStatsWidth = layout.direction === 'horizontal'
-			? layout.statsWidth
-			: layout.statsWidth
+	if (isHorizontal) {
+		// 横向布局：颜色统计表在图纸右侧（纵向单列排列），分享码和信息在下方
+		// 绘制颜色统计图（右侧，纵向排列）
+		if (colorStats.value.length > 0) {
+			drawColorStatsHorizontal(exportCanvas.ctx, layout.statsX, layout.statsY, layout.statsHeight, 1,
+				layout.colorsPerColumn)
+		}
 
-		drawColorStats(exportCanvas.ctx, layout.statsX, actualStatsY, actualStatsWidth, 1)
-	}
+		// 绘制作品信息（下方左侧）
+		drawArtworkInfo(exportCanvas.ctx, layout.infoX, layout.infoY, layout.infoWidth, 1, layout.contentRows)
 
-	// 绘制分享码（合并模式，绘制在底部）
-	if (shareCode) {
-		drawShareCode(exportCanvas.ctx, 0, canvasHeight - SHARE_CODE_SIZE - 30, canvasWidth, shareCode, 1)
+		// 绘制分享码（下方右侧）
+		if (shareCode) {
+			drawShareCode(exportCanvas.ctx, layout.shareCodeX, layout.shareCodeY, layout.totalWidth - layout
+				.shadowOffset * 2 - layout.rightWidth , shareCode, 1)
+		}
+		console.log({layout:layout})
+	} else {
+		// 纵向布局：颜色统计表在图纸下方，分享码和信息在统计表下方
+		// 绘制颜色统计图（下方）
+		if (colorStats.value.length > 0) {
+			drawColorStats(exportCanvas.ctx, layout.statsX, layout.statsY, layout.statsWidth, 1, layout
+				.colorsPerRow)
+		}
+
+		// 绘制作品信息（在颜色统计图下方）
+		drawArtworkInfo(exportCanvas.ctx, layout.infoX, layout.infoY, layout.infoWidth, 1, layout.contentRows)
+
+		// 绘制分享码（左侧文字 + 右侧二维码）
+		if (shareCode) {
+			drawShareCode(exportCanvas.ctx, layout.shareCodeX, layout.shareCodeY, layout.totalWidth - layout
+				.shadowOffset * 2, shareCode, 1)
+		}
 	}
 
 	// 绘制水印（最后绘制，覆盖在最上层）
@@ -3150,12 +4399,18 @@ const performMergeExport = async (mainImagePath, layout, shareCode) => {
 		})
 	})
 
+	// 预览模式：只返回图片路径
+	if (isPreview) {
+		return finalImagePath
+	}
+
 	// 保存到相册
 	await saveToAlbum(finalImagePath, shareCode)
+	return finalImagePath
 }
 
 // 分开导出
-const performSeparateExport = async (mainImagePath, layout, shareCode) => {
+const performSeparateExport = async (mainImagePath, layout, shareCode, isPreview = false) => {
 	// ========== 第一张：图纸 ==========
 	const exportCanvas1 = await getExportCanvasInstance()
 	if (!exportCanvas1) {
@@ -3186,9 +4441,13 @@ const performSeparateExport = async (mainImagePath, layout, shareCode) => {
 	exportCanvas1.ctx.fillRect(0, 0, paperWidth, paperHeight)
 
 	// ========== 高清绘制拼豆图纸 ==========
-	const { mappedData, gridSize } = perlerResultData.value || {}
+	const {
+		mappedData,
+		gridSize
+	} = perlerResultData.value || {}
 	if (mappedData && gridSize) {
 		const hdCellSize = 44
+		const minCellSize = 16 // 最小格子尺寸限制
 		const N = gridSize.N
 		const M = gridSize.M
 
@@ -3206,7 +4465,7 @@ const performSeparateExport = async (mainImagePath, layout, shareCode) => {
 		} else {
 			drawWidth = availableWidth
 			drawHeight = availableHeight
-			cellSize = Math.min(drawWidth / N, drawHeight / M)
+			cellSize = Math.max(minCellSize, Math.min(drawWidth / N, drawHeight / M))
 		}
 
 		const offsetX = EXPORT_PADDING + (availableWidth - drawWidth) / 2
@@ -3230,8 +4489,8 @@ const performSeparateExport = async (mainImagePath, layout, shareCode) => {
 		}
 
 		// 绘制颜色 code
-		if (cellSize >= 30 && showColorCode.value) {
-			const fontSize = Math.max(10, Math.min(16, cellSize * 0.4))
+		if (showColorCode.value) {
+			const fontSize = 20 // 固定字体大小
 
 			for (let y = 0; y < M; y++) {
 				for (let x = 0; x < N; x++) {
@@ -3266,11 +4525,9 @@ const performSeparateExport = async (mainImagePath, layout, shareCode) => {
 			img.onerror = reject
 			img.src = mainImagePath
 		})
-		exportCanvas1.ctx.drawImage(mainImage, EXPORT_PADDING, EXPORT_PADDING, layout.mainWidth, layout.mainHeight)
+		exportCanvas1.ctx.drawImage(mainImage, EXPORT_PADDING, EXPORT_PADDING, layout.mainWidth, layout
+			.mainHeight)
 	}
-
-	// 绘制作者名
-	drawAuthorName(exportCanvas1.ctx, EXPORT_PADDING, EXPORT_PADDING, layout.mainWidth, 1)
 
 	// 绘制水印
 	drawWatermark(exportCanvas1.ctx, paperWidth, paperHeight, 1)
@@ -3287,6 +4544,11 @@ const performSeparateExport = async (mainImagePath, layout, shareCode) => {
 			fail: (err) => reject(err)
 		})
 	})
+
+	// 预览模式：只返回图纸路径
+	if (isPreview) {
+		return paperPath
+	}
 
 	// 保存图纸
 	await new Promise((resolve) => {
@@ -3354,19 +4616,24 @@ const performSeparateExport = async (mainImagePath, layout, shareCode) => {
 
 	// 完成提示
 	uni.hideLoading()
-	uni.showModal({
+	uni.showToast({
 		title: '导出成功',
-		content: shareCode
-			? `图纸和颜色统计图已保存到相册\n\n分享码: ${shareCode.substring(0, 16)}...`
-			: '图纸和颜色统计图已保存到相册',
-		confirmText: shareCode ? '复制分享码' : '完成',
-		cancelText: shareCode ? '完成' : null,
-		success: (res) => {
-			if (res.confirm && shareCode) {
-				copyShareCode()
-			}
-		}
+		icon: 'success',
+		duration: 2000
 	})
+	if (shareCode) {
+		uni.showModal({
+			title: '分享码已生成',
+			content: `分享码: ${shareCode.substring(0, 30)}${shareCode.length > 30 ? '...' : ''}`,
+			confirmText: '复制分享码',
+			cancelText: '完成',
+			success: (res) => {
+				if (res.confirm) {
+					copyShareCode()
+				}
+			}
+		})
+	}
 }
 
 // 保存到相册并显示提示
@@ -3376,24 +4643,34 @@ const saveToAlbum = (filePath, shareCode) => {
 			filePath,
 			success: () => {
 				uni.hideLoading()
-				uni.showModal({
+				uni.showToast({
 					title: '导出成功',
-					content: shareCode
-						? `图纸已保存到相册\n\n分享码: ${shareCode.substring(0, 16)}...`
-						: '图纸已保存到相册',
-					confirmText: shareCode ? '复制分享码' : '完成',
-					cancelText: shareCode ? '完成' : null,
-					success: (res) => {
-						if (res.confirm && shareCode) {
-							copyShareCode()
-						}
-						resolve()
-					}
+					icon: 'success',
+					duration: 2000
 				})
+				if (shareCode) {
+					uni.showModal({
+						title: '分享码已生成',
+						content: `分享码: ${shareCode.substring(0, 30)}${shareCode.length > 30 ? '...' : ''}`,
+						confirmText: '复制分享码',
+						cancelText: '完成',
+						success: (res) => {
+							if (res.confirm) {
+								copyShareCode()
+							}
+							resolve()
+						}
+					})
+				} else {
+					resolve()
+				}
 			},
 			fail: () => {
 				uni.hideLoading()
-				uni.showToast({ icon: 'none', title: '保存失败' })
+				uni.showToast({
+					icon: 'none',
+					title: '保存失败'
+				})
 				resolve()
 			}
 		})
@@ -3419,8 +4696,8 @@ const performDownload = () => {
 
 	showExportSettingsDialog.value = false
 
-	// 执行完整导出
-	performFullExport()
+	// 生成预览图
+	generateExportPreview()
 }
 
 // 高清下载功能（修复作用域报错+放大模糊）
@@ -3428,7 +4705,12 @@ const downloadImage = () => {
 	// 检查是否有保存的设置
 	const savedSettings = uni.getStorageSync('exportSettings')
 	if (savedSettings) {
-		exportSettings.value = { ...exportSettings.value, ...savedSettings }
+		exportSettings.value = {
+			...exportSettings.value,
+			...savedSettings
+		}
+		authorName.value = savedSettings.authorName || ''
+		watermarkText.value = savedSettings.watermarkText || ''
 	}
 
 	toggleExportSettingsDialog()
@@ -3464,7 +4746,12 @@ onLoad(async (options) => {
 	// 加载保存的导出设置
 	const savedSettings = uni.getStorageSync('exportSettings')
 	if (savedSettings) {
-		exportSettings.value = { ...exportSettings.value, ...savedSettings }
+		exportSettings.value = {
+			...exportSettings.value,
+			...savedSettings
+		}
+		authorName.value = savedSettings.authorName || ''
+		watermarkText.value = savedSettings.watermarkText || ''
 	}
 
 	console.log('页面加载参数:', options)
@@ -3477,7 +4764,8 @@ onLoad(async (options) => {
 			})
 			if (imageInfo && imageInfo.width && imageInfo.height) {
 				imageAspectRatio.value = imageInfo.width / imageInfo.height
-				console.log(`📐 图片尺寸: ${imageInfo.width}×${imageInfo.height}, 宽高比: ${imageAspectRatio.value}`)
+				console.log(
+					`📐 图片尺寸: ${imageInfo.width}×${imageInfo.height}, 宽高比: ${imageAspectRatio.value}`)
 
 				// 根据图片比例重新计算 gridRows（保持 gridColumns 不变）
 				const newRows = Math.round(gridColumns.value / imageAspectRatio.value)
@@ -3511,7 +4799,8 @@ onMounted(() => {
 						canvasSize = res[0].width
 						console.log('📐 Canvas显示尺寸更新为:', canvasSize, 'px')
 						console.log('📏 格子数:', gridColumns.value, 'x', gridRows.value)
-						console.log('📐 理论格子大小:', (canvasSize / Math.max(gridColumns.value, gridRows.value)).toFixed(1), 'px')
+						console.log('📐 理论格子大小:', (canvasSize / Math.max(gridColumns.value,
+							gridRows.value)).toFixed(1), 'px')
 					} else {
 						console.warn('⚠️ 无法获取Canvas尺寸，使用默认值:', canvasSize)
 					}
@@ -4641,6 +5930,115 @@ onMounted(() => {
 	border-top: 2rpx solid var(--border-medium);
 }
 
+/* 导出预览弹框 */
+.export-preview-dialog {
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background: rgba(0, 0, 0, 0.5);
+	z-index: 99999;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 48rpx;
+	overflow: hidden;
+	touch-action: none;
+}
+
+.export-preview-container {
+	width: 600rpx;
+	max-width: 90vw;
+	height: 900rpx;
+	max-height: 85vh;
+	background: #ffffff;
+	border-radius: 24rpx;
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+	box-shadow: 0 8rpx 32rpx rgba(0, 0, 0, 0.2);
+	z-index: 100000;
+}
+
+.export-preview-header {
+	flex-shrink: 0;
+	background: #ffffff;
+	padding: 32rpx;
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	border-bottom: 1rpx solid #f0f0f0;
+}
+
+.export-preview-title {
+	font-size: 32rpx;
+	font-weight: 600;
+	color: #1a1a2e;
+}
+
+.export-preview-close {
+	font-size: 40rpx;
+	color: #999;
+	cursor: pointer;
+}
+
+.export-preview-content {
+	width: 560rpx;
+	flex: 1;
+	overflow: hidden;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	margin: 0 20rpx;
+	background: #f5f5f5;
+	box-sizing: border-box;
+	border-radius: 24rpx;
+}
+
+
+
+.preview-error {
+	color: var(--color-error-2);
+	font-size: 28rpx;
+	height: 100%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.preview-loading {
+	text-align: center;
+	color: var(--text-muted);
+	font-size: 28rpx;
+}
+
+.preview-image {
+	// max-width: 100%;
+	// max-height: 100%;
+	// display: block;
+	width: 560rpx;
+	height: auto;
+}
+
+.export-preview-footer {
+	flex-shrink: 0;
+	display: flex;
+	gap: 24rpx;
+	padding: 24rpx 32rpx;
+	border-top: 1rpx solid #f0f0f0;
+	background: #ffffff;
+}
+
+.export-preview-footer .export-btn {
+	flex: 1;
+	height: 80rpx;
+	line-height: 80rpx;
+	border-radius: 16rpx;
+	font-size: 28rpx;
+	margin: 0;
+}
+
 .show-item {
 	display: flex;
 	justify-content: space-between;
@@ -4805,5 +6203,70 @@ onMounted(() => {
 .settings-icon {
 	width: 32rpx;
 	height: 32rpx;
+}
+
+/* 输入框样式 */
+.input-item {
+	margin-bottom: 24rpx;
+
+	&:last-child {
+		margin-bottom: 0;
+	}
+}
+
+.input-label {
+	display: block;
+	font-size: 26rpx;
+	color: #666;
+	margin-bottom: 12rpx;
+}
+
+.input-field {
+	width: 100%;
+	height: 72rpx;
+	padding: 0 24rpx;
+	border: 1px solid #e0e0e0;
+	border-radius: 12rpx;
+	font-size: 28rpx;
+	background: #fff;
+	box-sizing: border-box;
+}
+
+.input-textarea {
+	width: 100%;
+	min-height: 120rpx;
+	padding: 16rpx 24rpx;
+	border: 1px solid #e0e0e0;
+	border-radius: 12rpx;
+	font-size: 28rpx;
+	background: #fff;
+	box-sizing: border-box;
+	resize: vertical;
+}
+
+.picker-field {
+	width: 100%;
+	height: 72rpx;
+	padding: 0 24rpx;
+	border: 1px solid #e0e0e0;
+	border-radius: 12rpx;
+	font-size: 28rpx;
+	background: #fff;
+	box-sizing: border-box;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+}
+
+.picker-arrow {
+	font-size: 24rpx;
+	color: #999;
+	margin-left: 16rpx;
+}
+
+.option-hint {
+	font-size: 24rpx;
+	color: #999;
+	margin-top: 12rpx;
 }
 </style>

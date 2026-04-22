@@ -1,0 +1,11 @@
+{
+	"name": "discovery-works",
+	"version": "1.0.0",
+	"description": "作品发现云函数",
+	"extensions": {
+		"uni-cloud-jql": {}
+	},
+	"cloudfunction-config": {
+		"runtime": "Nodejs18"
+	}
+}

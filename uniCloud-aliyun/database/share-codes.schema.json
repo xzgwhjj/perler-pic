@@ -1,0 +1,177 @@
+{
+	"bsonType": "object",
+	"required": ["share_code", "canvas_data"],
+	"permission": {
+		"read": "doc.is_public==true || doc.creator_uid==auth.uid",
+		"create": "auth.uid != null",
+		"update": "doc.creator_uid==auth.uid",
+		"delete": "doc.creator_uid==auth.uid"
+	},
+	"properties": {
+		"_id": {
+			"description": "分享码ID，系统自动生成"
+		},
+		"share_code": {
+			"bsonType": "string",
+			"description": "分享码（6位唯一字符串，用户输入使用）",
+			"title": "分享码",
+			"maxLength": 10
+		},
+		"sequence": {
+			"bsonType": "int",
+			"description": "自增序号（用于生成唯一分享码，不暴露给用户）",
+			"title": "序号"
+		},
+		"creator_uid": {
+			"bsonType": "string",
+			"description": "创建者用户ID（关联uni-id-users）",
+			"title": "创建者用户ID",
+			"maxLength": 64,
+			"foreignKey": "uni-id-users._id"
+		},
+		"canvas_data": {
+			"bsonType": "object",
+			"description": "画布数据（核心数据）",
+			"title": "画布数据",
+			"properties": {
+				"width": {
+					"bsonType": "int",
+					"description": "画布宽度（像素数）",
+					"title": "画布宽度"
+				},
+				"height": {
+					"bsonType": "int",
+					"description": "画布高度（像素数）",
+					"title": "画布高度"
+				},
+				"beads": {
+					"bsonType": "array",
+					"description": "非透明像素点数组 [{x: 0, y: 0, color: '#FFFFFF'}, ...]",
+					"arrayType": "object",
+					"title": "像素点数组"
+				},
+				"palette": {
+					"bsonType": "array",
+					"description": "使用的颜色hex列表 ['#FF0000', '#00FF00', ...]",
+					"arrayType": "string",
+					"title": "颜色列表"
+				}
+			}
+		},
+		"metadata": {
+			"bsonType": "object",
+			"description": "作品基本信息",
+			"title": "作品信息",
+			"properties": {
+				"title": {
+					"bsonType": "string",
+					"description": "作品标题",
+					"title": "作品标题",
+					"maxLength": 100
+				}
+			}
+		},
+		"settings": {
+			"bsonType": "object",
+			"description": "转换设置",
+			"title": "转换设置",
+			"properties": {
+				"brand": {
+					"bsonType": "string",
+					"description": "拼豆品牌",
+					"title": "拼豆品牌",
+					"enum": [{
+						"text": "Mard",
+						"value": "mard"
+					}, {
+						"text": "Coco",
+						"value": "coco"
+					}, {
+						"text": "咪小窝",
+						"value": "miwo"
+					}, {
+						"text": "漫漫",
+						"value": "manman"
+					}, {
+						"text": "盼盼",
+						"value": "panpan"
+					}],
+					"defaultValue": "mard"
+				},
+				"colorMergeThreshold": {
+					"bsonType": "int",
+					"description": "颜色合并阈值（0-100，0=不合并）",
+					"title": "颜色合并阈值",
+					"defaultValue": 30,
+					"minimum": 0,
+					"maximum": 100
+				},
+				"conversionMode": {
+					"bsonType": "string",
+					"description": "转换模式",
+					"title": "转换模式",
+					"enum": [{
+						"text": "卡通",
+						"value": "dominant"
+					}, {
+						"text": "图像",
+						"value": "average"
+					}],
+					"defaultValue": "dominant"
+				}
+			}
+		},
+		"original_image": {
+			"bsonType": "string",
+			"description": "原图地址（用户选择保留原图时存储，否则为空字符串）",
+			"title": "原图地址",
+			"trim": "both"
+		},
+		"is_public": {
+			"bsonType": "bool",
+			"description": "是否公开",
+			"title": "是否公开",
+			"defaultValue": true
+		},
+		"status": {
+			"bsonType": "int",
+			"description": "状态：1-正常，0-已删除，-1-已被举报，-2 临时",
+			"title": "状态",
+			"enum": [{
+				"text": "正常",
+				"value": 1
+			}, {
+				"text": "已删除",
+				"value": 0
+			}, {
+				"text": "已被举报",
+				"value": -1
+			}, {
+				"text": "临时",
+				"value": -2
+			}],
+			"defaultValue": 1
+		},
+		"create_date": {
+			"bsonType": "timestamp",
+			"description": "创建时间戳",
+			"title": "创建时间戳",
+			"forceDefaultValue": {
+				"$env": "now"
+			}
+		},
+		"update_date": {
+			"bsonType": "timestamp",
+			"description": "更新时间戳",
+			"title": "更新时间戳",
+			"forceDefaultValue": {
+				"$env": "now"
+			}
+		},
+		"expire_date": {
+			"bsonType": ["timestamp", "null"],
+			"description": "过期时间（null=永不过期）",
+			"title": "过期时间"
+		}
+	}
+}

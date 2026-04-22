@@ -143,15 +143,15 @@ export const syncStatsToCloud = async () => {
 			conversion_count: stats.conversion_count,
 			creation_count: stats.creation_count  // 修正拼写
 		}, false)
-		// 上传成功后重置本地计数（保留增量）
-		const newStats = {
-			...stats,
-			conversion_count: 0,
-			creation_count: 0,
-			last_sync_time: Date.now(),
-			pending_sync: false
-		}
-		saveLocalStats(newStats)
+		// // 上传成功后重置本地计数（保留增量）
+		// const newStats = {
+		// 	...stats,
+		// 	conversion_count: 0,
+		// 	creation_count: 0,
+		// 	last_sync_time: Date.now(),
+		// 	pending_sync: false
+		// }
+		// saveLocalStats(newStats)
 		console.log('上传统计数据到云端成功')
 		return true
 	} catch (e) {

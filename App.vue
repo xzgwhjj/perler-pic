@@ -158,6 +158,70 @@ export default {
 			}
 			// #endif
 		},
+		/**
+		 * 判断value是否为空 
+		 * @param {any} value - 要检查的值
+		 * @param {Object} options - 配置选项
+		 * @param {boolean} options.includeZero - 是否将0视为空值，默认false
+		 * @param {boolean} options.includeFalse - 是否将false视为空值，默认false
+		 * @param {boolean} options.includeNaN - 是否将NaN视为空值，默认true
+		 * @param {boolean} options.trimString - 是否在检查字符串前进行trim，默认true
+		 * @returns {Boolean}
+		 */
+		isEmpty(value, options = {}) {
+			// 设置默认选项
+			const {
+				includeZero = false,
+					includeFalse = false,
+					includeNaN = true,
+					trimString = true
+			} = options;
+		
+			// 检查null和undefined
+			if (value == null) {
+				return true;
+			}
+		
+			// 检查字符串
+			if (typeof value === 'string' || value instanceof String) {
+				return trimString ? value.trim() === '' : value === '';
+			}
+		
+			// 检查数字
+			if (typeof value === 'number') {
+				if (includeZero && value === 0) return true;
+				if (includeNaN && isNaN(value)) return true;
+				return false;
+			}
+		
+			// 检查布尔值
+			if (typeof value === 'boolean') {
+				return includeFalse && value === false;
+			}
+		
+			// 检查数组
+			if (Array.isArray(value)) {
+				return value.length === 0;
+			}
+		
+			// 检查Set和Map
+			if (value instanceof Set || value instanceof Map) {
+				return value.size === 0;
+			}
+		
+			// 检查对象（排除函数）
+			if (typeof value === 'object' && value !== null) {
+				// 检查是否为DOM元素
+				if (value.nodeType === 1) {
+					return false;
+				}
+				// 检查是否为空对象
+				return Object.keys(value).length === 0;
+			}
+		
+			// 其他类型（如函数）视为非空
+			return false;
+		}
 	}
 }
 </script>
