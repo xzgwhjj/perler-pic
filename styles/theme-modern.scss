@@ -6,6 +6,7 @@
   --bg-tertiary: #f0f2f5;
   --bg-card: #ffffff;
   --bg-card-2: #bedbff1a;
+  --bg-card-3: #00000066;
 
   /* 强调色 - 浅蓝色 */
   --accent-primary: #5cadfd;
@@ -36,10 +37,11 @@
   --color-error: #f5222d;
   --color-error-2: #ff6666;
 
-  /* 阴影 */
-  --shadow-sm: 0 2rpx 8rpx rgba(0, 0, 0, 0.04);
-  --shadow-md: 0 4rpx 16rpx rgba(0, 0, 0, 0.08);
-  --shadow-lg: 0 10px 15px -3px #0000001a, 0 4px 6px -4px #0000001a
+  /* 阴影 - box-shadow 不支持 rpx，必须用 px */
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 20px 30px -6px rgba(0, 0, 0, 0.1), 0 8px 12px -4px rgba(0, 0, 0, 0.06);
+  --shadow-xl: 0 50px 100px -24px rgba(0, 0, 0, 0.25);
 
   /* 圆角 - 圆润 653034 */
   --radius-sm: 16rpx;

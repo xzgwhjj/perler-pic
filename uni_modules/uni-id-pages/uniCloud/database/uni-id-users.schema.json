@@ -36,6 +36,30 @@
 				"write": "doc._id == auth.uid || 'CREATE_UNI_ID_USERS' in auth.permission || 'UPDATE_UNI_ID_USERS' in auth.permission"
 			}
 		},
+		"draft_cleanup_days": {
+			"bsonType": "int",
+			"description": "历史记录草稿清理天数：7-7天，30-30天，90-90天，-1-从不清理",
+			"title": "草稿清理天数",
+			"defaultValue": -1,
+			"enum": [{
+					"text": "7天",
+					"value": 7
+				}, {
+					"text": "30天",
+					"value": 30
+				}, {
+					"text": "90天",
+					"value": 90
+				}, {
+					"text": "从不清理",
+					"value": -1
+				}
+			],
+			"permission": {
+				"read": "doc._id == auth.uid || 'READ_UNI_ID_USERS' in auth.permission",
+				"write": "doc._id == auth.uid || 'CREATE_UNI_ID_USERS' in auth.permission || 'UPDATE_UNI_ID_USERS' in auth.permission"
+			}
+		},
 		"creation_count": {
 			"bsonType": "int",
 			"description": "创建次数",

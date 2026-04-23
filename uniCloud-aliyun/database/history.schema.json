@@ -1,0 +1,89 @@
+{
+	"bsonType": "object",
+	"required": ["user_id"],
+	"permission": {
+		"read": "doc.user_id==auth.uid",
+		"create": "doc.user_id==auth.uid",
+		"update": "doc.user_id==auth.uid",
+		"delete": "doc.user_id==auth.uid"
+	},
+	"properties": {
+		"_id": {
+			"description": "历史记录ID，系统自动生成"
+		},
+		"user_id": {
+			"bsonType": "string",
+			"description": "用户ID",
+			"title": "用户ID",
+			"maxLength": 64,
+			"foreignKey": "uni-id-users._id"
+		},
+		"thumbnail": {
+			"bsonType": "string",
+			"description": "缩略图（拼豆图纸预览图）",
+			"title": "缩略图"
+		},
+		"original_image": {
+			"bsonType": "string",
+			"description": "本地原图路径",
+			"title": "本地原图"
+		},
+		"canvas_data": {
+			"bsonType": "object",
+			"description": "拼豆数据",
+			"title": "拼豆数据",
+			"properties": {
+				"width": {
+					"bsonType": "int",
+					"description": "画布宽度"
+				},
+				"height": {
+					"bsonType": "int",
+					"description": "画布高度"
+				},
+				"beads": {
+					"bsonType": "array",
+					"description": "非透明像素点数组"
+				},
+				"palette": {
+					"bsonType": "array",
+					"description": "使用的颜色hex列表"
+				}
+			}
+		},
+		"settings": {
+			"bsonType": "object",
+			"description": "转换设置",
+			"title": "转换设置"
+		},
+		"share_code_id": {
+			"bsonType": "string",
+			"description": "关联的分享码ID",
+			"title": "分享码ID",
+			"maxLength": 64,
+			"foreignKey": "share-codes._id"
+		},
+		"discovery_work_id": {
+			"bsonType": "string",
+			"description": "关联的发现社区作品ID",
+			"title": "发现社区作品ID",
+			"maxLength": 64
+		},
+		"create_date": {
+			"bsonType": "timestamp",
+			"description": "创建时间",
+			"title": "创建时间",
+			"forceDefaultValue": {
+				"$env": "now"
+			}
+		},
+		"update_date": {
+			"bsonType": "timestamp",
+			"description": "更新时间",
+			"title": "更新时间",
+			"forceDefaultValue": {
+				"$env": "now"
+			}
+		}
+	}
+}

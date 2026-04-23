@@ -1,39 +1,97 @@
 <template>
-  <view class="design-workshop">
-    <!-- 开始创作弹窗 -->
-    <view class="modal create-modal" v-if="showCreateModal">
-      <text class="modal-title">开始创作</text>
-      <text class="modal-subtitle">选择您的创作方式</text>
-      <button class="modal-btn primary" @click="handleNewDesign">
-        <image src="/static/svg/new.svg" class="btn-icon"></image>
-        <text>新建设计</text>
-      </button>
-      <button class="modal-btn secondary" @click="openHistoryModal">
-        <image src="/static/svg/history2.svg" class="btn-icon"></image>
-        <text>选择历史</text>
-      </button>
-    </view>
+	<view class="design-workshop">
+		<!-- 顶部导航栏 -->
+		<view class="navbar">
+			<text class="title">设计工坊</text>
+			<view class="nav-actions">
+				<text class="icon" @click="handleUndo">↩</text>
+				<text class="icon" @click="handleRedo">↪</text>
+				<text class="icon" @click="handleDelete">🗑</text>
+			</view>
+		</view>
 
-    <!-- 历史记录弹窗 -->
-    <view class="modal history-modal" v-if="showHistoryModal" @click.self="closeHistoryModal">
-      <view class="modal-header">
-        <text class="modal-title">选择历史记录</text>
-        <text class="close-btn" @click="closeHistoryModal">×</text>
-      </view>
-      <scroll-view class="history-list" scroll-y>
-        <view v-for="item in historyList" :key="item.id" class="history-item" @click="selectHistoryItem(item)">
-          <view class="item-thumb" :style="{ backgroundColor: item.thumbColor }"></view>
-          <view class="item-info">
-            <text class="item-name">{{ item.name }}</text>
-            <text class="item-date">{{ item.date }}</text>
-          </view>
-          <text class="item-arrow">></text>
-        </view>
-      </scroll-view>
-    </view>
-    <!-- 自定义TabBar -->
-    <tabbar :current="1"></tabbar>
-  </view>
+		<!-- 拼豆板画布区域 -->
+		<view class="board-section">
+			<view class="board-header">
+				<text class="board-title">拼豆板</text>
+				<text class="board-size">29×29</text>
+			</view>
+			<view class="grid-container">
+				<view v-for="(row, rowIndex) in gridData" :key="rowIndex" class="grid-row">
+					<view v-for="(cell, colIndex) in row" :key="colIndex" class="grid-cell"
+						:style="{ backgroundColor: cell }" @click="handleCellClick(rowIndex, colIndex)"></view>
+				</view>
+			</view>
+		</view>
+
+		<!-- 开始创作弹窗 -->
+		<view v-if="showCreateModal" class="modal-overlay" @click.self="closeCreateModal">
+			<view class="modal create-modal">
+				<text class="modal-title">开始创作</text>
+				<text class="modal-subtitle">选择您的创作方式</text>
+				<button class="modal-btn primary" @click="handleNewDesign">
+          <image src="/static/svg/new.svg" class="btn-icon"></image> 
+          <text>新建设计</text>
+				</button>
+				<button class="modal-btn secondary" @click="openHistoryModal">
+					<text class="btn-icon">↦</text> 选择历史
+				</button>
+			</view>
+		</view>
+
+		<!-- 历史记录弹窗 -->
+		<view v-if="showHistoryModal" class="modal-overlay" @click.self="closeHistoryModal">
+			<view class="modal history-modal">
+				<view class="modal-header">
+					<text class="modal-title">选择历史记录</text>
+					<text class="close-btn" @click="closeHistoryModal">×</text>
+				</view>
+				<scroll-view class="history-list" scroll-y>
+					<view v-for="item in historyList" :key="item.id" class="history-item"
+						@click="selectHistoryItem(item)">
+						<view class="item-thumb" :style="{ backgroundColor: item.thumbColor }"></view>
+						<view class="item-info">
+							<text class="item-name">{{ item.name }}</text>
+							<text class="item-date">{{ item.date }}</text>
+						</view>
+						<text class="item-arrow">></text>
+					</view>
+				</scroll-view>
+			</view>
+		</view>
+
+		<!-- 底部工具栏 -->
+		<view class="toolbar-section">
+			<!-- 工具按钮组 -->
+			<view class="tools-group">
+				<text class="group-title">工具</text>
+				<view class="tools-list">
+					<view v-for="tool in tools" :key="tool.id" class="tool-item"
+						:class="{ active: selectedTool === tool.id }" @click="selectTool(tool.id)">
+						<text class="tool-icon">{{ tool.icon }}</text>
+					</view>
+				</view>
+			</view>
+
+			<!-- 颜色选择区 -->
+			<view class="color-group">
+				<view class="color-header">
+					<text class="group-title">颜色</text>
+					<view class="color-tabs">
+						<text class="tab-item active">Mard</text>
+						<text class="tab-item">Coco</text>
+					</view>
+				</view>
+				<view class="colors-list">
+					<view v-for="color in colors" :key="color" class="color-item"
+						:class="{ active: selectedColor === color }" :style="{ backgroundColor: color }"
+						@click="selectColor(color)"></view>
+				</view>
+			</view>
+		</view>
+		<!-- 自定义TabBar -->
+		<tabbar :current="1"></tabbar>
+	</view>
 </template>
 
 <script setup>
@@ -55,7 +113,7 @@ const selectedTool = ref('pen')   // 默认选中画笔
 
 // -------------------------- 颜色配置 --------------------------
 const colors = ref([
-  '#8FB9E6', '#FFFFFF', '#666666', '#7393B3',
+  '#8FB9E6', '#FFFFFF', '#666666', '#7393B3', 
   '#D3D3D3', '#4A7BA7', '#7CCD7C', '#FF99CC'
 ])
 const selectedColor = ref('#8FB9E6')  // 默认选中第一个颜色
@@ -90,11 +148,10 @@ const closeCreateModal = () => {
   showCreateModal.value = false
 }
 
-// 新建设计
+// 新建设计（重置画布）
 const handleNewDesign = () => {
-  uni.navigateTo({
-    url: '/designPackages/pages/design/design'
-  })
+  closeCreateModal()
+  initGrid()
 }
 
 // 打开「历史记录」弹窗
@@ -153,30 +210,94 @@ onMounted(() => {
 </script>
 
 <style scoped lang="scss">
-@import "@/styles/theme-modern.scss";
-
+	@import "@/styles/theme-modern.scss";
 .design-workshop {
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  height: calc(100vh - env(safe-area-inset-bottom) - 180rpx);
-  background-color: #ffffff;
+  min-height: 100vh;
+  background-color: #f5f5f5;
   font-size: 28rpx;
-  width: 100%;
-  overflow: hidden;
 }
 
-.modal {
-  background-color: #fff;
-  border-radius: var(--radius-lg);
-  padding: var(--space-xl);
-  box-sizing: border-box;
-  width: 672rpx;
-  // max-width: 720rpx;
+// 顶部导航栏
+.navbar {
   display: flex;
-  flex-direction: column;
+  justify-content: space-between;
   align-items: center;
+  padding: 20rpx 30rpx;
+  background-color: #fff;
+  .title {
+    font-size: 36rpx;
+    font-weight: bold;
+  }
+  .nav-actions {
+    display: flex;
+    gap: 30rpx;
+    .icon {
+      font-size: 32rpx;
+      color: #333;
+    }
+  }
+}
+
+// 拼豆板画布区域
+.board-section {
+  padding: 20rpx 30rpx;
+  .board-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20rpx;
+    .board-title {
+      font-size: 32rpx;
+      font-weight: bold;
+    }
+    .board-size {
+      color: #666;
+    }
+  }
+  .grid-container {
+    background-color: #fff;
+    border-radius: 16rpx;
+    padding: 20rpx;
+    .grid-row {
+      display: flex;
+      justify-content: center;
+      .grid-cell {
+        width: 20rpx;
+        height: 20rpx;
+        border: 1rpx solid #eee;
+        background-color: #fff;
+      }
+    }
+  }
+}
+
+// 弹窗通用样式
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: var(--bg-card-3);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 100;
+  width: 100%;
+  .modal {
+    background-color: #fff;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-xl);
+    padding: var(--space-xl);
+    box-sizing: border-box;
+    width: 672rpx;
+    // max-width: 720rpx;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
 }
 
 // 开始创作弹窗
@@ -187,13 +308,11 @@ onMounted(() => {
     color: var(--text-primary);
     margin-bottom: 16rpx;
   }
-
   .modal-subtitle {
     color: var(--text-secondary);
     font-size: var(--text-sm);
     margin-bottom: 48rpx;
   }
-
   .modal-btn {
     width: 100%;
     height: 112rpx;
@@ -204,29 +323,25 @@ onMounted(() => {
     font-size: 32rpx;
     font-weight: 500;
     gap: var(--space-md);
-
-    &:not(:last-child) {
-      margin-block-start: 0rpx;
-      margin-block-end: 24rpx;
+    &:not(:last-child){
+      margin-block-start:0rpx;
+      margin-block-end:24rpx;
     }
-
     .btn-icon {
       margin-right: 10rpx;
       width: 38rpx;
       height: 38rpx;
     }
-
     &.primary {
       background-color: var(--text-primary);
       color: #fff;
       font-weight: 500;
       font-size: 30rpx;
     }
-
     &.secondary {
       background-color: #fff;
-      color: var(--text-primary);
-      border: 2rpx solid var(--border-medium);
+      color: #333;
+      border: 1rpx solid #eee;
     }
   }
 }
@@ -235,58 +350,48 @@ onMounted(() => {
 .history-modal {
   width: 90%;
   max-width: 700rpx;
-
   .modal-header {
     width: 100%;
     display: flex;
     justify-content: space-between;
     align-items: center;
     margin-bottom: 30rpx;
-
     .modal-title {
       font-size: 32rpx;
       font-weight: bold;
     }
-
     .close-btn {
       font-size: 36rpx;
       color: #666;
     }
   }
-
   .history-list {
     width: 100%;
     max-height: 600rpx;
-
     .history-item {
       display: flex;
       align-items: center;
       padding: 20rpx;
       border-bottom: 1rpx solid #eee;
-
       .item-thumb {
         width: 80rpx;
         height: 80rpx;
         border-radius: 12rpx;
         margin-right: 20rpx;
       }
-
       .item-info {
         flex: 1;
-
         .item-name {
           font-size: 30rpx;
           font-weight: bold;
           display: block;
           margin-bottom: 10rpx;
         }
-
         .item-date {
           font-size: 24rpx;
           color: #666;
         }
       }
-
       .item-arrow {
         font-size: 32rpx;
         color: #999;
@@ -300,22 +405,17 @@ onMounted(() => {
   padding: 20rpx 30rpx;
   background-color: #fff;
   margin-top: auto;
-
-  .tools-group,
-  .color-group {
+  .tools-group, .color-group {
     margin-bottom: 30rpx;
-
     .group-title {
       font-size: 28rpx;
       color: #666;
       margin-bottom: 20rpx;
     }
   }
-
   .tools-list {
     display: flex;
     gap: 20rpx;
-
     .tool-item {
       width: 100rpx;
       height: 80rpx;
@@ -324,38 +424,31 @@ onMounted(() => {
       display: flex;
       justify-content: center;
       align-items: center;
-
       &.active {
         background-color: #1a1a2e;
-
         .tool-icon {
           color: #fff;
         }
       }
-
       .tool-icon {
         font-size: 32rpx;
         color: #333;
       }
     }
   }
-
   .color-group {
     .color-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
       margin-bottom: 20rpx;
-
       .color-tabs {
         display: flex;
         gap: 20rpx;
-
         .tab-item {
           padding: 10rpx 20rpx;
           border-radius: 12rpx;
           background-color: #f5f5f5;
-
           &.active {
             background-color: #e0e0e0;
             font-weight: bold;
@@ -363,17 +456,14 @@ onMounted(() => {
         }
       }
     }
-
     .colors-list {
       display: flex;
       gap: 20rpx;
-
       .color-item {
         width: 80rpx;
         height: 80rpx;
         border-radius: 50%;
         border: 3rpx solid transparent;
-
         &.active {
           border-color: #333;
         }

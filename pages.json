@@ -151,6 +151,23 @@
 			}
 		}
 	],
+	"subPackages": [{
+		"root": "designPackages",
+		"pages": [
+			{
+				"path": "pages/design/design",
+				"style": {
+					"navigationBarTitleText": "设计"
+				}
+			}
+		]
+	}],
+	"preloadRule": {
+		"pages/design/design": {
+			"network": "all",
+			"packages": ["designPackages"]
+		}
+	},
 	"globalStyle": {
 		"navigationBarTextStyle": "black",
 		"navigationBarTitleText": "豆图",

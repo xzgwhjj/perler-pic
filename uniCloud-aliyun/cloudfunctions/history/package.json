@@ -1,0 +1,12 @@
+{
+	"name": "history",
+	"version": "1.0.0",
+	"description": "历史记录云函数",
+	"extensions": {
+		"uni-cloud-jql": {},
+		"uni-id-common": {}
+	},
+	"cloudfunction-config": {
+		"runtime": "Nodejs18"
+	}
+}
